@@ -13,22 +13,22 @@ func TestLoggerEnabled(t *testing.T) {
 	logPath := filepath.Join(tempDir, "enabled_test.log")
 
 	// 创建不同级别的日志记录器
-	debugLogger, err := NewSlogLogger(LevelDebug, "text", logPath+".debug", "")
+	debugLogger, err := NewSlogLogger(LevelDebug, "text", logPath+".debug", "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create debug logger: %v", err)
 	}
 
-	infoLogger, err := NewSlogLogger(LevelInfo, "text", logPath+".info", "")
+	infoLogger, err := NewSlogLogger(LevelInfo, "text", logPath+".info", "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create info logger: %v", err)
 	}
 
-	warnLogger, err := NewSlogLogger(LevelWarn, "text", logPath+".warn", "")
+	warnLogger, err := NewSlogLogger(LevelWarn, "text", logPath+".warn", "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create warn logger: %v", err)
 	}
 
-	errorLogger, err := NewSlogLogger(LevelError, "text", logPath+".error", "")
+	errorLogger, err := NewSlogLogger(LevelError, "text", logPath+".error", "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create error logger: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestLogLevelFunctions(t *testing.T) {
 	logPath := filepath.Join(tempDir, "log_functions_test.log")
 
 	// 创建日志记录器
-	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "")
+	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}

@@ -167,7 +167,7 @@ func TestAutoRotate_TimeoutAndStop(t *testing.T) {
 
 // TestWithContext_EdgeCases tests edge cases for WithContext
 func TestWithContext_EdgeCases(t *testing.T) {
-	logger, err := NewSlogLogger(LevelDebug, "text", "stdout", "")
+	logger, err := NewSlogLogger(LevelDebug, "text", "stdout", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

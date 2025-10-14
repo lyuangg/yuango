@@ -57,36 +57,40 @@ func NewRotateWriter(basePath string, rotate string, maxFiles ...int) (*RotateWr
 	return rw, nil
 }
 
-// NewSlogLogger constructs a SlogLogger with given output, format, level, and rotation settings.
+// NewSlogLogger constructs a SlogLogger with given output, format, level, rotation, and hooks.
 // format: "text" or "json".
-// output: "stdout", "stderr", or a file path.
+// output: an io.Writer or a string ("stdout", "stderr", or a file path).
 // rotate: "hourly", "daily", or empty to disable rotation.
 // maxFiles: maximum number of log files to keep (0 means unlimited).
-func NewSlogLogger(level Level, format, output string, rotate string, maxFiles ...int) (*SlogLogger, error) {
-	maxFilesValue := 0
-	if len(maxFiles) > 0 {
-		maxFilesValue = maxFiles[0]
-	}
+// hooks: a slice of functions to process log records.
+func NewSlogLogger(level Level, format string, output interface{}, rotate string, maxFiles int, hooks ...Hook) (*SlogLogger, error) {
 	var w io.Writer
-	switch strings.ToLower(output) {
-	case "", "stdout":
-		w = os.Stdout
-	case "stderr":
-		w = os.Stderr
-	default:
-		if rotate != "" {
-			rw, err := NewRotateWriter(output, rotate, maxFilesValue)
-			if err != nil {
-				return nil, err
+	switch v := output.(type) {
+	case io.Writer:
+		w = v
+	case string:
+		switch strings.ToLower(v) {
+		case "", "stdout":
+			w = os.Stdout
+		case "stderr":
+			w = os.Stderr
+		default:
+			if rotate != "" {
+				rw, err := NewRotateWriter(v, rotate, maxFiles)
+				if err != nil {
+					return nil, err
+				}
+				w = rw
+			} else {
+				f, err := os.OpenFile(v, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+				if err != nil {
+					return nil, err
+				}
+				w = f
 			}
-			w = rw
-		} else {
-			f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-			if err != nil {
-				return nil, err
-			}
-			w = f
 		}
+	default:
+		return nil, fmt.Errorf("invalid output type: %T", output)
 	}
 
 	var handler slog.Handler
@@ -96,6 +100,10 @@ func NewSlogLogger(level Level, format, output string, rotate string, maxFiles .
 		handler = slog.NewJSONHandler(w, opts)
 	default:
 		handler = slog.NewTextHandler(w, opts)
+	}
+
+	if len(hooks) > 0 {
+		handler = &HookHandler{Handler: handler, hooks: hooks}
 	}
 
 	l := slog.New(handler)

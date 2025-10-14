@@ -171,7 +171,7 @@ func TestRotateWriter_ConcurrentRotation(t *testing.T) {
 // TestSlogLogger tests the SlogLogger functionality.
 func TestSlogLogger(t *testing.T) {
 	// Test with stdout
-	logger, err := NewSlogLogger(LevelInfo, "text", "stdout", "")
+	logger, err := NewSlogLogger(LevelInfo, "text", "stdout", "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestSlogLogger_JSONFormat(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "test.json")
 
-	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "")
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create JSON SlogLogger: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestSlogLogger_DailyRotation(t *testing.T) {
 	logPath := filepath.Join(tempDir, "daily.log")
 
 	// 创建带有日志轮转的 logger
-	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "daily", 3) // 使用 JSON 格式并限制保留 3 个文件
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "daily", 3)
 	if err != nil {
 		t.Fatalf("Failed to create daily rotation SlogLogger: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestSlogLogger_HourlyRotation(t *testing.T) {
 	logPath := filepath.Join(tempDir, "hourly.log")
 
 	// 创建带有日志轮转的 logger
-	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "hourly", 3) // 使用 JSON 格式并限制保留 3 个文件
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "hourly", 3)
 	if err != nil {
 		t.Fatalf("Failed to create hourly rotation SlogLogger: %v", err)
 	}
@@ -337,14 +337,13 @@ func TestSlogLogger_HourlyRotation(t *testing.T) {
 	}
 }
 
-
 // TestSlogLogger_Levels tests different log levels.
 func TestSlogLogger_Levels(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// 测试 Debug 级别
 	debugLogPath := filepath.Join(tempDir, "debug.log")
-	debugLogger, err := NewSlogLogger(LevelDebug, "text", debugLogPath, "")
+	debugLogger, err := NewSlogLogger(LevelDebug, "text", debugLogPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create debug logger: %v", err)
 	}
@@ -372,7 +371,7 @@ func TestSlogLogger_Levels(t *testing.T) {
 
 	// 测试 Error 级别
 	errorLogPath := filepath.Join(tempDir, "error.log")
-	errorLogger, err := NewSlogLogger(LevelError, "text", errorLogPath, "")
+	errorLogger, err := NewSlogLogger(LevelError, "text", errorLogPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create error logger: %v", err)
 	}
@@ -408,7 +407,7 @@ func TestSlogLogger_WithAndWithContext(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "with.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -525,7 +524,7 @@ func BenchmarkSlogLogger(b *testing.B) {
 	tempDir := b.TempDir()
 	logPath := filepath.Join(tempDir, "bench.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "", 0)
 	if err != nil {
 		b.Fatalf("Failed to create SlogLogger: %v", err)
 	}

@@ -61,7 +61,7 @@ func TestAutoRotateWithSlogLogger(t *testing.T) {
 	logPath := filepath.Join(tempDir, "slog-auto-rotate.log")
 
 	// Create SlogLogger with daily rotation enabled
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily")
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily", 0)
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}

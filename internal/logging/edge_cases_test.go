@@ -29,7 +29,7 @@ func TestSlogLoggerAllLevels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logPath := filepath.Join(tempDir, tc.levelStr+".log")
 
-			logger, err := NewSlogLogger(tc.logLevel, "text", logPath, "")
+			logger, err := NewSlogLogger(tc.logLevel, "text", logPath, "", 0)
 			if err != nil {
 				t.Fatalf("Failed to create logger for %s: %v", tc.name, err)
 			}
@@ -64,7 +64,7 @@ func TestSlogLogger_ContextBinding(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "context.log")
 
-	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "")
+	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestSlogLogger_PerformanceLevels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logPath := filepath.Join(tempDir, tc.name+".perf.log")
 
-			logger, err := NewSlogLogger(tc.level, "json", logPath, "")
+			logger, err := NewSlogLogger(tc.level, "json", logPath, "", 0)
 			if err != nil {
 				t.Fatalf("Failed to create %s logger: %v", tc.name, err)
 			}

@@ -20,7 +20,7 @@ func TestConcurrentSlogLogger(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "concurrent-slog.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily")
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily", 0)
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestConcurrentLoggerCreation(t *testing.T) {
 			defer wg.Done()
 
 			logPath := filepath.Join(tempDir, "logger-"+fmt.Sprintf("%d", goroutineID)+".log")
-			logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
+			logger, err := NewSlogLogger(LevelInfo, "text", logPath, "", 0)
 			if err != nil {
 				t.Errorf("Failed to create logger %d: %v", goroutineID, err)
 				return
@@ -230,7 +230,7 @@ func BenchmarkConcurrentSlogLogger(b *testing.B) {
 	tempDir := b.TempDir()
 	logPath := filepath.Join(tempDir, "bench-concurrent-slog.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "", 0)
 	if err != nil {
 		b.Fatalf("Failed to create SlogLogger: %v", err)
 	}
