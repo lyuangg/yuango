@@ -29,7 +29,7 @@ func TestSlogLoggerAllLevels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logPath := filepath.Join(tempDir, tc.levelStr+".log")
 
-			logger, err := NewSlogLogger(tc.logLevel, "text", logPath, false)
+			logger, err := NewSlogLogger(tc.logLevel, "text", logPath, "")
 			if err != nil {
 				t.Fatalf("Failed to create logger for %s: %v", tc.name, err)
 			}
@@ -64,7 +64,7 @@ func TestSlogLogger_ContextBinding(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "context.log")
 
-	logger, err := NewSlogLogger(LevelDebug, "text", logPath, false)
+	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
@@ -114,13 +114,13 @@ func TestSlogLogger_ContextBinding(t *testing.T) {
 	}
 }
 
-// TestDailyRotateWriter_EdgeCases tests edge cases for DailyRotateWriter.
-func TestDailyRotateWriter_EdgeCases(t *testing.T) {
+// TestRotateWriter_EdgeCases tests edge cases for RotateWriter.
+func TestRotateWriter_EdgeCases(t *testing.T) {
 	tempDir := t.TempDir()
 
 	t.Run("empty file path", func(t *testing.T) {
 		// Empty path should create a file in current directory
-		_, err := NewDailyRotateWriter("")
+		_, err := NewRotateWriter("", "daily")
 		if err != nil {
 			t.Logf("Empty file path creates error (expected): %v", err)
 			// This is acceptable behavior
@@ -129,7 +129,7 @@ func TestDailyRotateWriter_EdgeCases(t *testing.T) {
 
 	t.Run("non-existent directory", func(t *testing.T) {
 		nonExistentPath := filepath.Join(tempDir, "nonexistent", "test.log")
-		drw, err := NewDailyRotateWriter(nonExistentPath)
+		drw, err := NewRotateWriter(nonExistentPath, "daily")
 		if err != nil {
 			t.Fatalf("Failed to create writer: %v", err)
 		}
@@ -153,7 +153,7 @@ func TestDailyRotateWriter_EdgeCases(t *testing.T) {
 		}
 
 		basePath := filepath.Join(tempDir, "large.log")
-		drw, err := NewDailyRotateWriter(basePath)
+		drw, err := NewRotateWriter(basePath, "daily")
 		if err != nil {
 			t.Fatalf("Failed to create writer: %v", err)
 		}
@@ -181,7 +181,7 @@ func TestDailyRotateWriter_EdgeCases(t *testing.T) {
 
 	t.Run("write after close", func(t *testing.T) {
 		basePath := filepath.Join(tempDir, "closed.log")
-		drw, err := NewDailyRotateWriter(basePath)
+		drw, err := NewRotateWriter(basePath, "daily")
 		if err != nil {
 			t.Fatalf("Failed to create writer: %v", err)
 		}
@@ -217,7 +217,7 @@ func TestDailyRotateWriter_EdgeCases(t *testing.T) {
 			}()
 
 			basePath := filepath.Join(tempDir, "multiple-close.log")
-			drw, err := NewDailyRotateWriter(basePath)
+			drw, err := NewRotateWriter(basePath, "daily")
 			if err != nil {
 				t.Errorf("Failed to create writer: %v", err)
 				panic <- false
@@ -281,7 +281,7 @@ func TestSlogLogger_PerformanceLevels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logPath := filepath.Join(tempDir, tc.name+".perf.log")
 
-			logger, err := NewSlogLogger(tc.level, "json", logPath, false)
+			logger, err := NewSlogLogger(tc.level, "json", logPath, "")
 			if err != nil {
 				t.Fatalf("Failed to create %s logger: %v", tc.name, err)
 			}

@@ -8,8 +8,7 @@ import (
 
 // NewFromConfig creates a new logger from configuration.
 func NewFromConfig(c interface{}) (Logger, error) {
-	var level, format, output string
-	var daily bool
+	var level, format, output, rotate string
 	var maxFiles int
 
 	// 处理不同类型的配置
@@ -18,7 +17,7 @@ func NewFromConfig(c interface{}) (Logger, error) {
 		level = conf.Level
 		format = conf.Format
 		output = conf.Output
-		daily = conf.Daily
+		rotate = conf.Rotate
 		maxFiles = conf.MaxFiles
 	default:
 		// 尝试从旧配置中获取值
@@ -33,8 +32,8 @@ func NewFromConfig(c interface{}) (Logger, error) {
 			if o := v.FieldByName("Output"); o.IsValid() && o.Kind() == reflect.String {
 				output = o.String()
 			}
-			if d := v.FieldByName("Daily"); d.IsValid() && d.Kind() == reflect.Bool {
-				daily = d.Bool()
+			if r := v.FieldByName("Rotate"); r.IsValid() && r.Kind() == reflect.String {
+				rotate = r.String()
 			}
 		}
 	}
@@ -44,7 +43,7 @@ func NewFromConfig(c interface{}) (Logger, error) {
 		return nil, err
 	}
 
-	return NewSlogLogger(logLevel, format, output, daily, maxFiles)
+	return NewSlogLogger(logLevel, format, output, rotate, maxFiles)
 }
 
 func parseLevel(s string) (Level, error) {

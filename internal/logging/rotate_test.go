@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-// TestDailyRotateWriter_Close_Comprehensive 全面测试关闭功能
-func TestDailyRotateWriter_Close_Comprehensive(t *testing.T) {
+// TestRotateWriter_Close_Comprehensive 全面测试关闭功能
+func TestRotateWriter_Close_Comprehensive(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("close sequence", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "close_sequence.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func TestDailyRotateWriter_Close_Comprehensive(t *testing.T) {
 
 	t.Run("concurrent close", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "concurrent_close.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func TestDailyRotateWriter_Close_Comprehensive(t *testing.T) {
 
 	t.Run("close during write", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "close_write.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +88,7 @@ func TestDailyRotateWriter_Close_Comprehensive(t *testing.T) {
 
 	t.Run("close during rotation", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "close_rotate.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 
 	t.Run("auto rotation cycle", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "auto_rotate_cycle.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +174,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 
 	t.Run("stop during rotation", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "stop_rotate.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 
 	t.Run("rotation with concurrent writes", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "rotate_concurrent.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,7 +297,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 		defer os.Chmod(errorDir, 0o755) // 确保清理
 
 		// 在只读目录中创建writer应该失败
-		_, err := NewDailyRotateWriter(logPath)
+		_, err := NewRotateWriter(logPath, "daily")
 		if err == nil {
 			t.Fatal("Expected error when creating writer in read-only directory")
 		}
@@ -306,7 +306,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 		os.Chmod(errorDir, 0o755)
 
 		// 现在应该可以成功创建
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -327,7 +327,7 @@ func TestAutoRotate_Advanced(t *testing.T) {
 
 		// 修改日期以强制轮转
 		newDate := time.Now().Add(24 * time.Hour).Format("2006-01-02")
-		writer.lastDate = newDate // 强制下一次 rotateIfNeeded 进行轮转
+		writer.lastRotationTag = newDate // 强制下一次 rotateIfNeeded 进行轮转
 
 		// 尝试轮转，应该会失败因为文件是只读的
 		if err := writer.rotateIfNeeded(); err == nil {

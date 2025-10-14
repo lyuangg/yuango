@@ -13,22 +13,22 @@ func TestLoggerEnabled(t *testing.T) {
 	logPath := filepath.Join(tempDir, "enabled_test.log")
 
 	// 创建不同级别的日志记录器
-	debugLogger, err := NewSlogLogger(LevelDebug, "text", logPath+".debug", false)
+	debugLogger, err := NewSlogLogger(LevelDebug, "text", logPath+".debug", "")
 	if err != nil {
 		t.Fatalf("Failed to create debug logger: %v", err)
 	}
 
-	infoLogger, err := NewSlogLogger(LevelInfo, "text", logPath+".info", false)
+	infoLogger, err := NewSlogLogger(LevelInfo, "text", logPath+".info", "")
 	if err != nil {
 		t.Fatalf("Failed to create info logger: %v", err)
 	}
 
-	warnLogger, err := NewSlogLogger(LevelWarn, "text", logPath+".warn", false)
+	warnLogger, err := NewSlogLogger(LevelWarn, "text", logPath+".warn", "")
 	if err != nil {
 		t.Fatalf("Failed to create warn logger: %v", err)
 	}
 
-	errorLogger, err := NewSlogLogger(LevelError, "text", logPath+".error", false)
+	errorLogger, err := NewSlogLogger(LevelError, "text", logPath+".error", "")
 	if err != nil {
 		t.Fatalf("Failed to create error logger: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestLogLevelFunctions(t *testing.T) {
 	logPath := filepath.Join(tempDir, "log_functions_test.log")
 
 	// 创建日志记录器
-	logger, err := NewSlogLogger(LevelDebug, "text", logPath, false)
+	logger, err := NewSlogLogger(LevelDebug, "text", logPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
@@ -117,13 +117,13 @@ func TestLogLevelFunctions(t *testing.T) {
 	}
 }
 
-// TestNewDailyRotateWriter 测试 NewDailyRotateWriter 函数
-func TestNewDailyRotateWriter_Extended(t *testing.T) {
+// TestNewRotateWriter_Extended 测试 NewRotateWriter 函数
+func TestNewRotateWriter_Extended(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "rotate_test.log")
 
 	// 测试正常情况
-	writer, err := NewDailyRotateWriter(logPath)
+	writer, err := NewRotateWriter(logPath, "daily")
 	if err != nil {
 		t.Fatalf("Failed to create writer: %v", err)
 	}
@@ -135,11 +135,11 @@ func TestNewDailyRotateWriter_Extended(t *testing.T) {
 		t.Fatalf("Failed to write data: %v", err)
 	}
 
-	// 注意：NewDailyRotateWriter 会自动创建目录，所以我们需要使用一个真正无法创建的路径
+	// 注意：NewRotateWriter 会自动创建目录，所以我们需要使用一个真正无法创建的路径
 	// 例如，在 Unix 系统上尝试在 /dev/null 下创建文件
 	if os.Getuid() != 0 { // 非 root 用户
 		invalidPath := "/dev/null/invalid.log"
-		_, err = NewDailyRotateWriter(invalidPath)
+		_, err = NewRotateWriter(invalidPath, "daily")
 		if err == nil {
 			t.Log("Note: Expected error for invalid path, but got nil. This might be system-dependent.")
 		}
@@ -148,7 +148,7 @@ func TestNewDailyRotateWriter_Extended(t *testing.T) {
 	// 测试目录不存在但可以创建的情况
 	newDirPath := filepath.Join(tempDir, "newdir")
 	newLogPath := filepath.Join(newDirPath, "new.log")
-	writer2, err := NewDailyRotateWriter(newLogPath)
+	writer2, err := NewRotateWriter(newLogPath, "daily")
 	if err != nil {
 		t.Fatalf("Failed to create writer with new directory: %v", err)
 	}

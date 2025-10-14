@@ -15,9 +15,9 @@ func TestAutoRotate(t *testing.T) {
 	basePath := filepath.Join(tempDir, "auto-rotate.log")
 
 	// Create writer with auto rotation
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -61,7 +61,7 @@ func TestAutoRotateWithSlogLogger(t *testing.T) {
 	logPath := filepath.Join(tempDir, "slog-auto-rotate.log")
 
 	// Create SlogLogger with daily rotation enabled
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, true)
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily")
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -113,9 +113,9 @@ func TestAutoRotateConcurrent(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "concurrent-auto-rotate.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -153,9 +153,9 @@ func TestAutoRotateStop(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "stop-auto-rotate.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 
 	// Write some data

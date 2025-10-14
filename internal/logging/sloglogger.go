@@ -1,4 +1,4 @@
-// Package logging provides a structured logging interface with daily rotation support.
+// Package logging provides a structured logging interface with rotation support.
 package logging
 
 import (
@@ -14,14 +14,15 @@ import (
 	"time"
 )
 
-// DailyRotateWriter implements daily log rotation by appending date to filename.
-type DailyRotateWriter struct {
-	basePath string
-	file     *os.File
-	lastDate string
-	mu       sync.RWMutex
-	stopCh   chan struct{} // 停止自动轮转的信号
-	maxFiles int           // 最大保留的日志文件数量，0表示不限制
+// RotateWriter implements log rotation by appending a timestamp to the filename.
+type RotateWriter struct {
+	basePath        string
+	file            *os.File
+	lastRotationTag string
+	mu              sync.RWMutex
+	stopCh          chan struct{} // Signal to stop auto-rotation.
+	maxFiles        int           // Maximum number of log files to keep. 0 means unlimited.
+	rotate          string        // Rotation schedule: "hourly", "daily".
 }
 
 // SlogLogger wraps slog.Logger to satisfy the Logger interface.
@@ -31,33 +32,37 @@ type SlogLogger struct {
 	level Level
 }
 
-// NewDailyRotateWriter creates a writer that rotates logs daily.
+// NewRotateWriter creates a writer that rotates logs based on the specified schedule.
+// rotate: "hourly", "daily".
 // maxFiles specifies the maximum number of log files to keep (0 means unlimited).
-func NewDailyRotateWriter(basePath string, maxFiles ...int) (*DailyRotateWriter, error) {
-	maxFilesValue := 0 // 默认不限制
+func NewRotateWriter(basePath string, rotate string, maxFiles ...int) (*RotateWriter, error) {
+	maxFilesValue := 0 // Default: no limit.
 	if len(maxFiles) > 0 {
 		maxFilesValue = maxFiles[0]
 	}
 
-	drw := &DailyRotateWriter{
+	rw := &RotateWriter{
 		basePath: basePath,
 		stopCh:   make(chan struct{}),
 		maxFiles: maxFilesValue,
+		rotate:   rotate,
 	}
-	if err := drw.rotateIfNeeded(); err != nil {
+	if err := rw.rotateIfNeeded(); err != nil {
 		return nil, err
 	}
 
-	// 启动自动轮转检查
-	go drw.autoRotate()
+	// Start the auto-rotation check goroutine.
+	go rw.autoRotate()
 
-	return drw, nil
+	return rw, nil
 }
 
-// NewSlogLogger constructs a SlogLogger with given output, format, level and daily rotation.
-// format: "text" or "json"; output: "stdout", "stderr", or file path; daily: enable daily rotation.
+// NewSlogLogger constructs a SlogLogger with given output, format, level, and rotation settings.
+// format: "text" or "json".
+// output: "stdout", "stderr", or a file path.
+// rotate: "hourly", "daily", or empty to disable rotation.
 // maxFiles: maximum number of log files to keep (0 means unlimited).
-func NewSlogLogger(level Level, format, output string, daily bool, maxFiles ...int) (*SlogLogger, error) {
+func NewSlogLogger(level Level, format, output string, rotate string, maxFiles ...int) (*SlogLogger, error) {
 	maxFilesValue := 0
 	if len(maxFiles) > 0 {
 		maxFilesValue = maxFiles[0]
@@ -69,12 +74,12 @@ func NewSlogLogger(level Level, format, output string, daily bool, maxFiles ...i
 	case "stderr":
 		w = os.Stderr
 	default:
-		if daily {
-			drw, err := NewDailyRotateWriter(output, maxFilesValue)
+		if rotate != "" {
+			rw, err := NewRotateWriter(output, rotate, maxFilesValue)
 			if err != nil {
 				return nil, err
 			}
-			w = drw
+			w = rw
 		} else {
 			f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 			if err != nil {
@@ -97,11 +102,11 @@ func NewSlogLogger(level Level, format, output string, daily bool, maxFiles ...i
 	return &SlogLogger{base: l, level: level}, nil
 }
 
-// Write implements io.Writer interface for DailyRotateWriter.
-func (drw *DailyRotateWriter) Write(p []byte) (n int, err error) {
-	drw.mu.RLock()
-	file := drw.file
-	drw.mu.RUnlock()
+// Write implements the io.Writer interface for RotateWriter.
+func (rw *RotateWriter) Write(p []byte) (n int, err error) {
+	rw.mu.RLock()
+	file := rw.file
+	rw.mu.RUnlock()
 
 	if file == nil {
 		return 0, fmt.Errorf("log file not initialized")
@@ -110,21 +115,21 @@ func (drw *DailyRotateWriter) Write(p []byte) (n int, err error) {
 	return file.Write(p)
 }
 
-// Close closes the current log file and stops auto rotation.
-func (drw *DailyRotateWriter) Close() error {
-	// 停止自动轮转
+// Close closes the current log file and stops auto-rotation.
+func (rw *RotateWriter) Close() error {
+	// Stop the auto-rotation goroutine.
 	select {
-	case <-drw.stopCh:
-		// 已经关闭了
+	case <-rw.stopCh:
+		// Already closed.
 	default:
-		close(drw.stopCh)
+		close(rw.stopCh)
 	}
 
-	drw.mu.Lock()
-	defer drw.mu.Unlock()
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
 
-	if drw.file != nil {
-		return drw.file.Close()
+	if rw.file != nil {
+		return rw.file.Close()
 	}
 	return nil
 }
@@ -134,7 +139,7 @@ func (l *SlogLogger) With(args ...any) Logger {
 	return &SlogLogger{base: l.base.With(args...), ctx: l.ctx, level: l.level}
 }
 
-// WithContext binds default context to the logger.
+// WithContext binds a default context to the logger.
 func (l *SlogLogger) WithContext(ctx context.Context) Logger {
 	return &SlogLogger{base: l.base, ctx: ctx, level: l.level}
 }
@@ -179,43 +184,53 @@ func (l *SlogLogger) Error(ctx context.Context, msg string, args ...any) {
 	l.base.ErrorContext(ctx, msg, args...)
 }
 
-// rotateIfNeeded checks if a new log file should be created for the current day.
-func (drw *DailyRotateWriter) rotateIfNeeded() error {
-	today := time.Now().Format("2006-01-02")
-	drw.mu.Lock()
-	defer drw.mu.Unlock()
+// rotateIfNeeded checks if a new log file should be created based on the rotation schedule.
+func (rw *RotateWriter) rotateIfNeeded() error {
+	format := ""
+	switch rw.rotate {
+	case "hourly":
+		format = "2006-01-02-15"
+	case "daily":
+		format = "2006-01-02"
+	default:
+		return nil // No rotation needed if schedule is not set or unknown.
+	}
 
-	// 检查是否需要轮转
-	if drw.file != nil && drw.lastDate == today {
+	currentTag := time.Now().Format(format)
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+
+	// Check if rotation is needed.
+	if rw.file != nil && rw.lastRotationTag == currentTag {
 		return nil
 	}
 
-	// 确定新文件名
-	ext := filepath.Ext(drw.basePath)
-	basename := drw.basePath
+	// Determine the new filename.
+	ext := filepath.Ext(rw.basePath)
+	basename := rw.basePath
 	if ext != "" {
-		basename = drw.basePath[:len(drw.basePath)-len(ext)]
+		basename = rw.basePath[:len(rw.basePath)-len(ext)]
 	}
-	newFilename := fmt.Sprintf("%s-%s%s", basename, today, ext)
+	newFilename := fmt.Sprintf("%s-%s%s", basename, currentTag, ext)
 	if ext == "" {
 		newFilename += ".log"
 	}
 
-	// Close existing file if open
-	if drw.file != nil {
-		if err := drw.file.Close(); err != nil {
+	// Close existing file if open.
+	if rw.file != nil {
+		if err := rw.file.Close(); err != nil {
 			return fmt.Errorf("failed to close existing file: %w", err)
 		}
-		drw.file = nil
+		rw.file = nil
 	}
 
-	// 获取并检查目录权限
-	dir := filepath.Dir(drw.basePath)
+	// Get and check directory permissions.
+	dir := filepath.Dir(rw.basePath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// 检查目录是否可写（通过创建临时文件）
+	// Check if the directory is writable by creating a temporary file.
 	tmpFile := filepath.Join(dir, fmt.Sprintf(".tmp_write_test_%d", time.Now().UnixNano()))
 	if f, err := os.OpenFile(tmpFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644); err != nil {
 		return fmt.Errorf("directory is not writable: %w", err)
@@ -224,7 +239,7 @@ func (drw *DailyRotateWriter) rotateIfNeeded() error {
 		os.Remove(tmpFile)
 	}
 
-	// 如果新文件已存在，检查是否可写
+	// If the new file already exists, check if it's writable.
 	if _, err := os.Stat(newFilename); err == nil {
 		if f, err := os.OpenFile(newFilename, os.O_WRONLY|os.O_APPEND, 0); err != nil {
 			return fmt.Errorf("existing log file is not writable: %w", err)
@@ -233,39 +248,38 @@ func (drw *DailyRotateWriter) rotateIfNeeded() error {
 		}
 	}
 
-	// 创建新文件
+	// Create the new log file.
 	f, err := os.OpenFile(newFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to create new log file: %w", err)
 	}
 
-	// 更新状态
-	drw.file = f
-	drw.lastDate = today
+	// Update state.
+	rw.file = f
+	rw.lastRotationTag = currentTag
 
-	// 清理旧日志文件（如果配置了最大文件数）
-	if drw.maxFiles > 0 {
-		if err := drw.cleanOldLogFiles(); err != nil {
-			return fmt.Errorf("failed to clean old log files: %w", err)
+	// Clean up old log files if maxFiles is set.
+	if rw.maxFiles > 0 {
+		if err := rw.cleanOldLogFiles(); err != nil {
+			// Log this error but don't fail the rotation.
+			// A separate monitoring mechanism should handle cleanup failures.
+			fmt.Fprintf(os.Stderr, "failed to clean old log files: %v\n", err)
 		}
 	}
 
 	return nil
 }
 
-// cleanOldLogFiles 清理超过最大保留数量的旧日志文件
-func (drw *DailyRotateWriter) cleanOldLogFiles() error {
-	// 获取日志文件所在目录
-	dir := filepath.Dir(drw.basePath)
-	baseFileName := filepath.Base(drw.basePath)
+// cleanOldLogFiles removes old log files exceeding the maxFiles limit.
+func (rw *RotateWriter) cleanOldLogFiles() error {
+	dir := filepath.Dir(rw.basePath)
+	baseFileName := filepath.Base(rw.basePath)
 
-	// 读取目录中的所有文件
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read log directory: %v", err)
 	}
 
-	// 筛选出符合日志文件命名模式的文件
 	ext := filepath.Ext(baseFileName)
 	prefix := baseFileName
 	if ext != "" {
@@ -280,39 +294,40 @@ func (drw *DailyRotateWriter) cleanOldLogFiles() error {
 		}
 	}
 
-	// 如果日志文件数量未超过最大保留数量，则不需要清理
-	if len(logFiles) <= drw.maxFiles {
+	if len(logFiles) <= rw.maxFiles {
 		return nil
 	}
 
-	// 按文件修改时间排序
 	sort.Slice(logFiles, func(i, j int) bool {
 		infoI, _ := os.Stat(logFiles[i])
 		infoJ, _ := os.Stat(logFiles[j])
+		if infoI == nil || infoJ == nil {
+			return false // Should not happen in normal operation
+		}
 		return infoI.ModTime().Before(infoJ.ModTime())
 	})
 
-	// 删除最旧的文件，直到文件数量等于最大保留数量
-	for i := 0; i < len(logFiles)-drw.maxFiles; i++ {
+	for i := 0; i < len(logFiles)-rw.maxFiles; i++ {
 		if err := os.Remove(logFiles[i]); err != nil {
-			return fmt.Errorf("failed to remove old log file %s: %v", logFiles[i], err)
+			// Log error but continue trying to remove other files.
+			fmt.Fprintf(os.Stderr, "failed to remove old log file %s: %v\n", logFiles[i], err)
 		}
 	}
 	return nil
 }
 
-// autoRotate runs in a goroutine to check for daily rotation.
-func (drw *DailyRotateWriter) autoRotate() {
-	ticker := time.NewTicker(time.Minute) // 每分钟检查一次
+// autoRotate runs in a goroutine to check for rotation.
+func (rw *RotateWriter) autoRotate() {
+	ticker := time.NewTicker(time.Minute) // Check every minute.
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// 检查是否需要轮转
-			_ = drw.rotateIfNeeded() // 忽略轮转错误，不中断服务
-		case <-drw.stopCh:
-			// 收到停止信号，退出 goroutine
+			// Check if rotation is needed.
+			_ = rw.rotateIfNeeded() // Ignore rotation errors to not interrupt service.
+		case <-rw.stopCh:
+			// Received stop signal, exit goroutine.
 			return
 		}
 	}

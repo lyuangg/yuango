@@ -9,13 +9,13 @@ import (
 	"time"
 )
 
-// TestDailyRotateWriter_Write_Comprehensive 全面测试写入功能
-func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
+// TestRotateWriter_Write_Comprehensive 全面测试写入功能
+func TestRotateWriter_Write_Comprehensive(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("write to uninitialized writer", func(t *testing.T) {
 		// 创建一个未初始化文件的 writer
-		drw := &DailyRotateWriter{
+		drw := &RotateWriter{
 			basePath: filepath.Join(tmpDir, "uninit.log"),
 			stopCh:   make(chan struct{}),
 		}
@@ -29,7 +29,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 	t.Run("write after close", func(t *testing.T) {
 		// 创建并关闭 writer
 		logPath := filepath.Join(tmpDir, "close.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 
 	t.Run("concurrent writes", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "concurrent.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,7 +92,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 
 	t.Run("write during rotation", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "rotate.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 
 	t.Run("write large data", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "large.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +145,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 
 	t.Run("write with file permissions", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "perms.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func TestDailyRotateWriter_Write_Comprehensive(t *testing.T) {
 
 	t.Run("write zero bytes", func(t *testing.T) {
 		logPath := filepath.Join(tmpDir, "zero.log")
-		writer, err := NewDailyRotateWriter(logPath)
+		writer, err := NewRotateWriter(logPath, "daily")
 		if err != nil {
 			t.Fatal(err)
 		}

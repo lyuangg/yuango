@@ -14,7 +14,7 @@ func TestNewFromConfig_SpecialCases(t *testing.T) {
 		Level  string
 		Format string
 		Output string
-		Daily  bool
+		Rotate string
 	}
 
 	testCases := []struct {
@@ -28,7 +28,7 @@ func TestNewFromConfig_SpecialCases(t *testing.T) {
 				Level  *string
 				Format *string
 				Output *string
-				Daily  *bool
+				Rotate *string
 			}{},
 			shouldError: false,
 		},
@@ -38,12 +38,12 @@ func TestNewFromConfig_SpecialCases(t *testing.T) {
 				Level  interface{}
 				Format interface{}
 				Output interface{}
-				Daily  interface{}
+				Rotate interface{}
 			}{
 				Level:  "debug",
 				Format: "json",
 				Output: "stdout",
-				Daily:  true,
+				Rotate: "daily",
 			},
 			shouldError: false,
 		},
@@ -53,7 +53,7 @@ func TestNewFromConfig_SpecialCases(t *testing.T) {
 				level  string
 				format string
 				output string
-				daily  bool
+				rotate string
 			}{},
 			shouldError: false,
 		},
@@ -75,12 +75,12 @@ func TestNewFromConfig_SpecialCases(t *testing.T) {
 	}
 }
 
-// TestDailyRotateWriter_WriteAndClose tests write operations and close behavior
-func TestDailyRotateWriter_WriteAndClose(t *testing.T) {
+// TestRotateWriter_WriteAndClose tests write operations and close behavior
+func TestRotateWriter_WriteAndClose(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "write_close_test.log")
 
-	writer, err := NewDailyRotateWriter(logPath)
+	writer, err := NewRotateWriter(logPath, "daily")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestAutoRotate_TimeoutAndStop(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "auto_rotate_test.log")
 
-	writer, err := NewDailyRotateWriter(logPath)
+	writer, err := NewRotateWriter(logPath, "daily")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestAutoRotate_TimeoutAndStop(t *testing.T) {
 
 // TestWithContext_EdgeCases tests edge cases for WithContext
 func TestWithContext_EdgeCases(t *testing.T) {
-	logger, err := NewSlogLogger(LevelDebug, "text", "stdout", false)
+	logger, err := NewSlogLogger(LevelDebug, "text", "stdout", "")
 	if err != nil {
 		t.Fatal(err)
 	}

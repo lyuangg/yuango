@@ -20,7 +20,7 @@ func TestConcurrentSlogLogger(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "concurrent-slog.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, true)
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "daily")
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -73,9 +73,9 @@ func TestConcurrentRotationAndWrite(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "rotation-write.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -122,9 +122,9 @@ func TestConcurrentCloseAndWrite(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "close-write.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 
 	var wg sync.WaitGroup
@@ -177,7 +177,7 @@ func TestConcurrentLoggerCreation(t *testing.T) {
 			defer wg.Done()
 
 			logPath := filepath.Join(tempDir, "logger-"+fmt.Sprintf("%d", goroutineID)+".log")
-			logger, err := NewSlogLogger(LevelInfo, "text", logPath, false)
+			logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
 			if err != nil {
 				t.Errorf("Failed to create logger %d: %v", goroutineID, err)
 				return
@@ -201,14 +201,14 @@ func TestConcurrentLoggerCreation(t *testing.T) {
 	}
 }
 
-// BenchmarkConcurrentWrite benchmarks concurrent writes to DailyRotateWriter.
+// BenchmarkConcurrentWrite benchmarks concurrent writes to RotateWriter.
 func BenchmarkConcurrentWrite(b *testing.B) {
 	tempDir := b.TempDir()
 	basePath := filepath.Join(tempDir, "bench-concurrent.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		b.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		b.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -230,7 +230,7 @@ func BenchmarkConcurrentSlogLogger(b *testing.B) {
 	tempDir := b.TempDir()
 	logPath := filepath.Join(tempDir, "bench-concurrent-slog.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, false)
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
 	if err != nil {
 		b.Fatalf("Failed to create SlogLogger: %v", err)
 	}

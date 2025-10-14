@@ -105,8 +105,8 @@ func TestRotationWithErrors(t *testing.T) {
 				defer tt.cleanupFunc()
 			}
 
-			// 创建DailyRotateWriter
-			writer, err := NewDailyRotateWriter(tt.path, tt.maxFiles)
+			// 创建RotateWriter
+			writer, err := NewRotateWriter(tt.path, "daily", tt.maxFiles)
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error when creating writer, but got nil")
@@ -147,12 +147,12 @@ func TestAutoRotateEdgeCases(t *testing.T) {
 	tests := []struct {
 		name     string
 		maxFiles int
-		setup    func(w *DailyRotateWriter)
+		setup    func(w *RotateWriter)
 	}{
 		{
 			name:     "quick_stop",
 			maxFiles: 1,
-			setup: func(w *DailyRotateWriter) {
+			setup: func(w *RotateWriter) {
 				// 立即停止自动轮转
 				w.Close()
 			},
@@ -160,7 +160,7 @@ func TestAutoRotateEdgeCases(t *testing.T) {
 		{
 			name:     "multiple_rotations",
 			maxFiles: 1,
-			setup: func(w *DailyRotateWriter) {
+			setup: func(w *RotateWriter) {
 				// 快速触发多次轮转
 				for i := 0; i < 3; i++ {
 					w.rotateIfNeeded()
@@ -171,7 +171,7 @@ func TestAutoRotateEdgeCases(t *testing.T) {
 		{
 			name:     "rotation_during_writes",
 			maxFiles: 1,
-			setup: func(w *DailyRotateWriter) {
+			setup: func(w *RotateWriter) {
 				// 在写入时触发轮转
 				go func() {
 					for i := 0; i < 100; i++ {
@@ -187,8 +187,8 @@ func TestAutoRotateEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 创建DailyRotateWriter
-			writer, err := NewDailyRotateWriter(logPath, tt.maxFiles)
+			// 创建RotateWriter
+			writer, err := NewRotateWriter(logPath, "daily", tt.maxFiles)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -304,8 +304,8 @@ func TestCleanOldLogFilesEdgeCases(t *testing.T) {
 				}
 			}
 
-			// 创建DailyRotateWriter
-			writer, err := NewDailyRotateWriter(logPath, tt.maxFiles)
+			// 创建RotateWriter
+			writer, err := NewRotateWriter(logPath, "daily", tt.maxFiles)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -359,8 +359,8 @@ func TestCloseWithConcurrentWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 创建DailyRotateWriter
-	writer, err := NewDailyRotateWriter(logPath, 1)
+	// 创建RotateWriter
+	writer, err := NewRotateWriter(logPath, "daily", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

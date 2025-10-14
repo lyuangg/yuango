@@ -23,7 +23,7 @@ func TestNewFromConfig(t *testing.T) {
 				Level:  "info",
 				Format: "text",
 				Output: "stdout",
-				Daily:  false,
+				Rotate: "",
 			},
 			wantErr: false,
 		},
@@ -33,7 +33,7 @@ func TestNewFromConfig(t *testing.T) {
 				Level:  "debug",
 				Format: "json",
 				Output: "stderr",
-				Daily:  false,
+				Rotate: "",
 			},
 			wantErr: false,
 		},
@@ -43,7 +43,17 @@ func TestNewFromConfig(t *testing.T) {
 				Level:  "warn",
 				Format: "text",
 				Output: filepath.Join(tempDir, "daily.log"),
-				Daily:  true,
+				Rotate: "daily",
+			},
+			wantErr: false,
+		},
+		{
+			name: "hourly rotation enabled",
+			config: config.LogConfig{
+				Level:  "warn",
+				Format: "text",
+				Output: filepath.Join(tempDir, "hourly.log"),
+				Rotate: "hourly",
 			},
 			wantErr: false,
 		},
@@ -53,7 +63,7 @@ func TestNewFromConfig(t *testing.T) {
 				Level:  "error",
 				Format: "text",
 				Output: filepath.Join(tempDir, "error.log"),
-				Daily:  false,
+				Rotate: "",
 			},
 			wantErr: false,
 		},
@@ -63,7 +73,7 @@ func TestNewFromConfig(t *testing.T) {
 				Level:  "invalid",
 				Format: "text",
 				Output: "stdout",
-				Daily:  false,
+				Rotate: "",
 			},
 			wantErr: true,
 		},
@@ -111,7 +121,7 @@ func TestNewFromConfig_NativeConfig(t *testing.T) {
 				Level:    "debug",
 				Format:   "json",
 				Output:   "stdout",
-				Daily:    true,
+				Rotate:   "daily",
 				MaxFiles: 5,
 			},
 			wantErr: false,
@@ -175,7 +185,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 		Level  string
 		Format string
 		Output string
-		Daily  bool
+		Rotate string
 	}
 
 	// 测试用例：不同类型的字段
@@ -183,7 +193,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 		Level  interface{} // 测试接口类型
 		Format *string     // 测试指针类型
 		Output []byte      // 测试切片类型
-		Daily  *bool       // 测试布尔指针
+		Rotate *string     // 测试字符串指针
 	}
 
 	// 测试用例：带有额外字段的配置
@@ -191,7 +201,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 		Level    string
 		Format   string
 		Output   string
-		Daily    bool
+		Rotate   string
 		MaxFiles int    // 额外字段
 		LogID    string // 额外字段
 	}
@@ -207,7 +217,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 	// 准备测试数据
 	textFormat := "text"
 	jsonFormat := "json"
-	isDaily := true
+	dailyRotate := "daily"
 	debugLevel := "debug"
 	outputPath := filepath.Join(tempDir, "test.log")
 
@@ -227,7 +237,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 				Level:  "debug",
 				Format: "json",
 				Output: outputPath,
-				Daily:  true,
+				Rotate: "daily",
 			},
 			wantErr: false,
 		},
@@ -237,7 +247,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 				Level:  debugLevel,
 				Format: &textFormat,
 				Output: []byte("stdout"),
-				Daily:  &isDaily,
+				Rotate: &dailyRotate,
 			},
 			wantErr: false,
 		},
@@ -247,7 +257,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 				Level:    "info",
 				Format:   "text",
 				Output:   "stderr",
-				Daily:    false,
+				Rotate:   "",
 				MaxFiles: 10,
 				LogID:    "test-log",
 			},
@@ -269,7 +279,7 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 				"Level":  "debug",
 				"Format": "json",
 				"Output": "stdout",
-				"Daily":  true,
+				"Rotate": "daily",
 			},
 			wantErr: false,
 		},
@@ -302,12 +312,12 @@ func TestNewFromConfig_CustomConfigs(t *testing.T) {
 					Level  *string
 					Format *string
 					Output *string
-					Daily  *bool
+					Rotate *string
 				}{
 					Level:  &debugLevel,
 					Format: &jsonFormat,
 					Output: &outputPath,
-					Daily:  &isDaily,
+					Rotate: &dailyRotate,
 				}
 			}(),
 			wantErr: false,
@@ -404,7 +414,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "text",
 				Output: "stdout",
-				Daily:  false,
+				Rotate: "",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -417,7 +427,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "text",
 				Output: "stderr",
-				Daily:  false,
+				Rotate: "",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -430,7 +440,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "text",
 				Output: "",
-				Daily:  false,
+				Rotate: "",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -443,7 +453,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "json",
 				Output: filepath.Join(tempDir, "json.log"),
-				Daily:  false,
+				Rotate: "",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -456,7 +466,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "unknown",
 				Output: filepath.Join(tempDir, "text.log"),
-				Daily:  false,
+				Rotate: "",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -469,7 +479,7 @@ func TestNewFromConfigEdgeCases(t *testing.T) {
 				Level:  "info",
 				Format: "text",
 				Output: filepath.Join(tempDir, "daily.log"),
-				Daily:  true,
+				Rotate: "daily",
 			},
 			test: func(t *testing.T, logger Logger) {
 				ctx := context.Background()
@@ -516,7 +526,7 @@ func TestNewFromConfigAllLevels(t *testing.T) {
 				Level:  tc.level,
 				Format: "text",
 				Output: logPath,
-				Daily:  false,
+				Rotate: "",
 			}
 
 			logger, err := NewFromConfig(config)

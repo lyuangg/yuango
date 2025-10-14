@@ -14,16 +14,16 @@ import (
 	"time"
 )
 
-// TestDailyRotateWriter tests the daily rotation functionality.
-func TestDailyRotateWriter(t *testing.T) {
+// TestRotateWriter tests the daily rotation functionality.
+func TestRotateWriter(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "test.log")
 
 	// Test 1: Create writer and write data
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -63,14 +63,14 @@ func TestDailyRotateWriter(t *testing.T) {
 	}
 }
 
-// TestDailyRotateWriter_Close tests the Close method.
-func TestDailyRotateWriter_Close(t *testing.T) {
+// TestRotateWriter_Close tests the Close method.
+func TestRotateWriter_Close(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "test.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 
 	// Write some data
@@ -92,14 +92,14 @@ func TestDailyRotateWriter_Close(t *testing.T) {
 	}
 }
 
-// TestDailyRotateWriter_ConcurrentRotation tests concurrent rotation scenarios.
-func TestDailyRotateWriter_ConcurrentRotation(t *testing.T) {
+// TestRotateWriter_ConcurrentRotation tests concurrent rotation scenarios.
+func TestRotateWriter_ConcurrentRotation(t *testing.T) {
 	tempDir := t.TempDir()
 	basePath := filepath.Join(tempDir, "concurrent.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		t.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		t.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -171,7 +171,7 @@ func TestDailyRotateWriter_ConcurrentRotation(t *testing.T) {
 // TestSlogLogger tests the SlogLogger functionality.
 func TestSlogLogger(t *testing.T) {
 	// Test with stdout
-	logger, err := NewSlogLogger(LevelInfo, "text", "stdout", false)
+	logger, err := NewSlogLogger(LevelInfo, "text", "stdout", "")
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestSlogLogger_JSONFormat(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "test.json")
 
-	logger, err := NewSlogLogger(LevelInfo, "json", logPath, false)
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create JSON SlogLogger: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestSlogLogger_DailyRotation(t *testing.T) {
 	logPath := filepath.Join(tempDir, "daily.log")
 
 	// 创建带有日志轮转的 logger
-	logger, err := NewSlogLogger(LevelInfo, "json", logPath, true, 3) // 使用 JSON 格式并限制保留 3 个文件
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "daily", 3) // 使用 JSON 格式并限制保留 3 个文件
 	if err != nil {
 		t.Fatalf("Failed to create daily rotation SlogLogger: %v", err)
 	}
@@ -292,9 +292,9 @@ func TestSlogLogger_DailyRotation(t *testing.T) {
 	logContent := string(content)
 
 	// 验证日志格式和内容
-	if !strings.Contains(logContent, `"level":"INFO"`) ||
-		!strings.Contains(logContent, `"msg":"info message"`) ||
-		!strings.Contains(logContent, `"test":true`) {
+	if !strings.Contains(logContent, "\"level\":\"INFO\"") ||
+		!strings.Contains(logContent, "\"msg\":\"info message\"") ||
+		!strings.Contains(logContent, "\"test\":true") {
 		t.Error("Log file doesn't contain expected JSON format or content")
 	}
 
@@ -312,13 +312,39 @@ func TestSlogLogger_DailyRotation(t *testing.T) {
 	}
 }
 
+// TestSlogLogger_HourlyRotation tests hourly rotation integration with SlogLogger.
+func TestSlogLogger_HourlyRotation(t *testing.T) {
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "hourly.log")
+
+	// 创建带有日志轮转的 logger
+	logger, err := NewSlogLogger(LevelInfo, "json", logPath, "hourly", 3) // 使用 JSON 格式并限制保留 3 个文件
+	if err != nil {
+		t.Fatalf("Failed to create hourly rotation SlogLogger: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// 测试不同日志级别
+	logger.Info(ctx, "info message", "test", true)
+
+	// 验证文件创建和格式
+	hour := time.Now().Format("2006-01-02-15")
+	expectedPath := strings.Replace(logPath, ".log", "-"+hour+".log", 1)
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("Expected hourly log file %s was not created", expectedPath)
+		return
+	}
+}
+
+
 // TestSlogLogger_Levels tests different log levels.
 func TestSlogLogger_Levels(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// 测试 Debug 级别
 	debugLogPath := filepath.Join(tempDir, "debug.log")
-	debugLogger, err := NewSlogLogger(LevelDebug, "text", debugLogPath, false)
+	debugLogger, err := NewSlogLogger(LevelDebug, "text", debugLogPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create debug logger: %v", err)
 	}
@@ -346,7 +372,7 @@ func TestSlogLogger_Levels(t *testing.T) {
 
 	// 测试 Error 级别
 	errorLogPath := filepath.Join(tempDir, "error.log")
-	errorLogger, err := NewSlogLogger(LevelError, "text", errorLogPath, false)
+	errorLogger, err := NewSlogLogger(LevelError, "text", errorLogPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create error logger: %v", err)
 	}
@@ -382,7 +408,7 @@ func TestSlogLogger_WithAndWithContext(t *testing.T) {
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "with.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, false)
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
 	if err != nil {
 		t.Fatalf("Failed to create SlogLogger: %v", err)
 	}
@@ -470,14 +496,14 @@ func TestSlogLogger_WithAndWithContext(t *testing.T) {
 	}
 }
 
-// BenchmarkDailyRotateWriter benchmarks the DailyRotateWriter performance.
-func BenchmarkDailyRotateWriter(b *testing.B) {
+// BenchmarkRotateWriter benchmarks the RotateWriter performance.
+func BenchmarkRotateWriter(b *testing.B) {
 	tempDir := b.TempDir()
 	basePath := filepath.Join(tempDir, "bench.log")
 
-	drw, err := NewDailyRotateWriter(basePath)
+	drw, err := NewRotateWriter(basePath, "daily")
 	if err != nil {
-		b.Fatalf("Failed to create DailyRotateWriter: %v", err)
+		b.Fatalf("Failed to create RotateWriter: %v", err)
 	}
 	defer drw.Close()
 
@@ -499,7 +525,7 @@ func BenchmarkSlogLogger(b *testing.B) {
 	tempDir := b.TempDir()
 	logPath := filepath.Join(tempDir, "bench.log")
 
-	logger, err := NewSlogLogger(LevelInfo, "text", logPath, false)
+	logger, err := NewSlogLogger(LevelInfo, "text", logPath, "")
 	if err != nil {
 		b.Fatalf("Failed to create SlogLogger: %v", err)
 	}

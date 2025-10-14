@@ -21,12 +21,12 @@ func TestNewFromConfig_AllConfigs(t *testing.T) {
 				Level  string
 				Format string
 				Output string
-				Daily  bool
+				Rotate string
 			}{
 				Level:  "debug",
 				Format: "json",
 				Output: filepath.Join(tmpDir, "log1.log"),
-				Daily:  true,
+				Rotate: "daily",
 			},
 		},
 		{
@@ -35,12 +35,12 @@ func TestNewFromConfig_AllConfigs(t *testing.T) {
 				Level  int
 				Format []byte
 				Output bool
-				Daily  string
+				Rotate string
 			}{
 				Level:  123,
 				Format: []byte("text"),
 				Output: true,
-				Daily:  "true",
+				Rotate: "true",
 			},
 		},
 		{
@@ -76,7 +76,7 @@ func TestWrite_Comprehensive(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "write_test.log")
 
-	writer, err := NewDailyRotateWriter(logPath)
+	writer, err := NewRotateWriter(logPath, "daily")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestRotation_Comprehensive(t *testing.T) {
 	logPath := filepath.Join(tmpDir, "rotation_test.log")
 
 	// 创建带最大文件数限制的写入器
-	writer, err := NewDailyRotateWriter(logPath, 3)
+	writer, err := NewRotateWriter(logPath, "daily", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
