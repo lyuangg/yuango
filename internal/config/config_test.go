@@ -1,11 +1,10 @@
-package config_test
+package config
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/lyuangg/yuango/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,8 +19,8 @@ func createTempConfigFile(t *testing.T, content string) string {
 
 func TestLoad_Defaults(t *testing.T) {
 	// Clear any existing environment variables that might interfere
-	os.Unsetenv("PORT")
-	os.Unsetenv("APP_NAME")
+	os.Unsetenv(EnvPrefix + "_PORT")
+	os.Unsetenv(EnvPrefix + "_APP_NAME")
 
 	// Temporarily change working directory to ensure no config file is found
 	originalWd, _ := os.Getwd()
@@ -29,7 +28,7 @@ func TestLoad_Defaults(t *testing.T) {
 	os.Chdir(tempDir)
 	defer os.Chdir(originalWd)
 
-	cfg := config.Load()
+	cfg := Load()
 
 	assert.Equal(t, "8080", cfg.Port)
 	assert.Equal(t, "yuango", cfg.App.Name)
@@ -40,8 +39,8 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_FromFile(t *testing.T) {
 	// Clear any existing environment variables that might interfere
-	os.Unsetenv("PORT")
-	os.Unsetenv("APP_NAME")
+	os.Unsetenv(EnvPrefix + "_PORT")
+	os.Unsetenv(EnvPrefix + "_APP_NAME")
 
 	configContent := `
 port: "9000"
@@ -70,7 +69,7 @@ log:
 
 	os.Chdir(filepath.Dir(tempConfigFile))
 
-	cfg := config.Load()
+	cfg := Load()
 
 	assert.Equal(t, "9000", cfg.Port)
 	assert.Equal(t, "test_app", cfg.App.Name)
@@ -81,13 +80,13 @@ log:
 
 func TestLoad_FromEnv(t *testing.T) {
 	// Set environment variables
-	os.Setenv("PORT", "9090")
-	os.Setenv("APP_NAME", "env_app")
-	os.Setenv("DATABASE_PORT", "3306")
+	os.Setenv(EnvPrefix+"_PORT", "9090")
+	os.Setenv(EnvPrefix+"_APP_NAME", "env_app")
+	os.Setenv(EnvPrefix+"_DATABASE_PORT", "3306")
 	defer func() {
-		os.Unsetenv("PORT")
-		os.Unsetenv("APP_NAME")
-		os.Unsetenv("DATABASE_PORT")
+		os.Unsetenv(EnvPrefix + "_PORT")
+		os.Unsetenv(EnvPrefix + "_APP_NAME")
+		os.Unsetenv(EnvPrefix + "_DATABASE_PORT")
 	}()
 
 	// Temporarily change working directory to ensure no config file is found
@@ -96,7 +95,7 @@ func TestLoad_FromEnv(t *testing.T) {
 	os.Chdir(tempDir)
 	defer os.Chdir(originalWd)
 
-	cfg := config.Load()
+	cfg := Load()
 
 	assert.Equal(t, "9090", cfg.Port)
 	assert.Equal(t, "env_app", cfg.App.Name)
@@ -112,7 +111,7 @@ app:
 `
 	tempConfigFile := createTempConfigFile(t, configContent)
 
-	cfg := config.LoadFromFile(tempConfigFile)
+	cfg := LoadFromFile(tempConfigFile)
 
 	assert.Equal(t, "8888", cfg.Port)
 	assert.Equal(t, "file_load_app", cfg.App.Name)
@@ -121,8 +120,8 @@ app:
 
 func TestLoadFromFile_EmptyPath(t *testing.T) {
 	// Clear any existing environment variables that might interfere
-	os.Unsetenv("PORT")
-	os.Unsetenv("APP_NAME")
+	os.Unsetenv(EnvPrefix + "_PORT")
+	os.Unsetenv(EnvPrefix + "_APP_NAME")
 
 	// Temporarily change working directory to ensure no config file is found
 	originalWd, _ := os.Getwd()
@@ -130,10 +129,41 @@ func TestLoadFromFile_EmptyPath(t *testing.T) {
 	os.Chdir(tempDir)
 	defer os.Chdir(originalWd)
 
-	cfg := config.LoadFromFile("") // Empty path should behave like Load()
+	cfg := LoadFromFile("") // Empty path should behave like Load()
 
 	assert.Equal(t, "8080", cfg.Port)
 	assert.Equal(t, "yuango", cfg.App.Name)
+}
+
+func TestLoad_ConfigPathEnv(t *testing.T) {
+	// Clear any existing environment variables that might interfere
+	os.Unsetenv(EnvPrefix + "_PORT")
+	os.Unsetenv(EnvPrefix + "_APP_NAME")
+	os.Unsetenv(EnvPrefix + "_CONFIG_PATH")
+
+	configContent := `
+port: "8000"
+app:
+  name: "config_path_app"
+`
+	tempDir := t.TempDir()
+	tempConfigFile := filepath.Join(tempDir, "config.yaml")
+	err := os.WriteFile(tempConfigFile, []byte(configContent), 0o644)
+	assert.NoError(t, err)
+
+	os.Setenv(EnvPrefix+"_CONFIG_PATH", tempDir)
+	defer os.Unsetenv(EnvPrefix + "_CONFIG_PATH")
+
+	// Temporarily change working directory to ensure no other config file is found
+	originalWd, _ := os.Getwd()
+	os.Chdir(t.TempDir()) // Change to a different temp dir to ensure CONFIG_PATH is used
+	defer os.Chdir(originalWd)
+
+	cfg := Load()
+
+	assert.Equal(t, "8000", cfg.Port)
+	assert.Equal(t, "config_path_app", cfg.App.Name)
+	assert.Equal(t, "mysql", cfg.Database.Driver) // Should still be default
 }
 
 func TestLoadFromFile_NonExistentFile(t *testing.T) {

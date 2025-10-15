@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const EnvPrefix string = "YUANGO"
+
 // Config holds application runtime configuration.
 type Config struct {
 	Port     string         `mapstructure:"port" default:"8080"`
@@ -23,7 +25,7 @@ type AppConfig struct {
 
 type DatabaseConfig struct {
 	Driver          string `mapstructure:"driver" default:"mysql"`
-	DSN             string `mapstructure:"dsn"`
+	DSN             string
 	Host            string `mapstructure:"host" default:"localhost"`
 	Port            int    `mapstructure:"port" default:"3306"`
 	User            string `mapstructure:"user" default:"root"`
@@ -83,6 +85,8 @@ func setupViper(v *viper.Viper) {
 	// 2. Bind environment variables.
 	// This allows overriding config values with env vars, e.g., PORT=9090.
 	v.AutomaticEnv()
+
+	v.SetEnvPrefix(EnvPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// We don't need individual BindEnv calls if we use AutomaticEnv and a replacer.
@@ -98,7 +102,7 @@ func Load() Config {
 	v.SetConfigType("yaml")
 	v.AddConfigPath("./configs")
 	v.AddConfigPath(".")
-	v.AddConfigPath(os.Getenv("CONFIG_PATH")) // Allow setting config path via env
+	v.AddConfigPath(os.Getenv(EnvPrefix + "_CONFIG_PATH")) // Allow setting config path via env
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
