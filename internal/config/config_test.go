@@ -1,10 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -188,4 +190,25 @@ func TestLoadFromFile_NonExistentFile(t *testing.T) {
 	// 	return
 	// }
 	// t.Fatalf("process ran with err %v, want exit status 1", err)
+}
+
+func TestSetDefaultsFromStruct(t *testing.T) {
+	v := viper.New()
+	conf := struct {
+		Name *string `mapstructure:"name" default:"zhangsan"`
+		App  *struct {
+			Name *string `mapstructure:"name" default:"lisi"`
+			Age  int     `mapstructure:"age" default:"18"`
+		} `mapstructure:"app"`
+	}{}
+	setDefaultsFromStruct(v, conf)
+
+	assert.Equal(t, "zhangsan", v.GetString("name"))
+	assert.Equal(t, "lisi", v.GetString("app.name"))
+	assert.Equal(t, 18, v.GetInt("app.age"))
+
+	v2 := viper.New()
+	conf2 := struct{}{}
+	setDefaultsFromStruct(v2, &conf2)
+	fmt.Printf("%#v", v2)
 }

@@ -68,6 +68,15 @@ func setDefaultsRecursive(v *viper.Viper, t reflect.Type, parentKey string) {
 
 		if field.Type.Kind() == reflect.Struct {
 			setDefaultsRecursive(v, field.Type, fullKey)
+		} else if field.Type.Kind() == reflect.Ptr {
+			if field.Type.Elem().Kind() == reflect.Struct {
+				setDefaultsRecursive(v, field.Type.Elem(), fullKey)
+			} else {
+				defaultTag := field.Tag.Get("default")
+				if defaultTag != "" {
+					v.SetDefault(fullKey, defaultTag)
+				}
+			}
 		} else {
 			defaultTag := field.Tag.Get("default")
 			if defaultTag != "" {
