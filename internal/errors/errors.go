@@ -14,6 +14,7 @@ type APIError struct {
 	Message   string `json:"message"`             // Error message
 	Details   string `json:"details,omitempty"`   // Additional error details
 	Timestamp string `json:"timestamp,omitempty"` // Error timestamp
+	err       error  // Wrapped error (not exported to JSON)
 }
 
 // Error implements the error interface.
@@ -25,15 +26,23 @@ func (e *APIError) Error() string {
 }
 
 // Unwrap implements the Unwrap method for error unwrapping compatibility.
-// Returns nil as APIError doesn't wrap other errors directly.
+// Returns the wrapped error if present, otherwise nil.
 func (e *APIError) Unwrap() error {
-	return nil
+	return e.err
 }
 
 // Is implements the Is method for error comparison compatibility.
+// Returns true if:
+// 1. e and target are the same instance (pointer equality), OR
+// 2. e and target have the same error code
 func (e *APIError) Is(target error) bool {
 	if targetErr, ok := target.(*APIError); ok {
-		return e.Code == targetErr.Code && e.Message == targetErr.Message
+		// Check pointer equality first (for predefined errors)
+		if e == targetErr {
+			return true
+		}
+		// Then check code equality (for error type matching)
+		return e.Code == targetErr.Code
 	}
 	return false
 }
@@ -53,6 +62,7 @@ func New(code int, message string) *APIError {
 		Code:      code,
 		Message:   message,
 		Timestamp: getCurrentTimestamp(),
+		err:       nil,
 	}
 }
 
@@ -63,6 +73,7 @@ func NewWithDetails(code int, message, details string) *APIError {
 		Message:   message,
 		Details:   details,
 		Timestamp: getCurrentTimestamp(),
+		err:       nil,
 	}
 }
 
@@ -72,6 +83,7 @@ func Wrap(err error, code int, message string) *APIError {
 		Code:      code,
 		Message:   message,
 		Timestamp: getCurrentTimestamp(),
+		err:       err,
 	}
 
 	if err != nil {
@@ -88,6 +100,7 @@ func WrapWithDetails(err error, code int, message, details string) *APIError {
 		Message:   message,
 		Details:   details,
 		Timestamp: getCurrentTimestamp(),
+		err:       err,
 	}
 
 	if err != nil {
@@ -183,4 +196,29 @@ func (e *APIError) String() string {
 func (e *APIError) WithDetails(details string) *APIError {
 	e.Details = details
 	return e
+}
+
+// Wrap wraps another error with this APIError, creating a new APIError with the same code and message.
+// The wrapped error becomes the underlying error and its message is appended to Details.
+// This is useful for adding context to errors while maintaining the error chain.
+func (e *APIError) Wrap(err error) *APIError {
+	if err == nil {
+		return e
+	}
+
+	newErr := &APIError{
+		Code:      e.Code,
+		Message:   e.Message,
+		Timestamp: getCurrentTimestamp(),
+		err:       err,
+	}
+
+	// Append the wrapped error's message to Details
+	if e.Details != "" {
+		newErr.Details = fmt.Sprintf("%s: %s", e.Details, err.Error())
+	} else {
+		newErr.Details = err.Error()
+	}
+
+	return newErr
 }
