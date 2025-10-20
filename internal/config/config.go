@@ -1,3 +1,4 @@
+// Package config provides configuration management for the application.
 package config
 
 import (
@@ -14,13 +15,24 @@ const EnvPrefix string = "YUANGO"
 // Config holds application runtime configuration.
 type Config struct {
 	Port     string         `mapstructure:"port" default:"8080"`
+	Server   ServerConfig   `mapstructure:"server"`
 	App      AppConfig      `mapstructure:"app"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Log      LogConfig      `mapstructure:"log"`
 }
 
+// ServerConfig holds HTTP server configuration.
+type ServerConfig struct {
+	ReadHeaderTimeout int `mapstructure:"read_header_timeout" default:"5"` // seconds
+	ReadTimeout       int `mapstructure:"read_timeout" default:"10"`       // seconds
+	WriteTimeout      int `mapstructure:"write_timeout" default:"15"`      // seconds
+	IdleTimeout       int `mapstructure:"idle_timeout" default:"60"`       // seconds
+	ShutdownTimeout   int `mapstructure:"shutdown_timeout" default:"10"`   // seconds
+}
+
 type AppConfig struct {
-	Name string `mapstructure:"name" default:"yuango"`
+	Name  string `mapstructure:"name" default:"yuango"`
+	Debug bool   `mapstructure:"debug" default:"false"`
 }
 
 type DatabaseConfig struct {
