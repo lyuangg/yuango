@@ -25,11 +25,16 @@ type RotateWriter struct {
 	rotate          string        // Rotation schedule: "hourly", "daily".
 }
 
+// ContextFieldsFunc is a function that extracts key-value pairs from context.
+// It should return a slice of alternating keys and values: [key1, value1, key2, value2, ...].
+type ContextFieldsFunc func(context.Context) []any
+
 // SlogLogger wraps slog.Logger to satisfy the Logger interface.
 type SlogLogger struct {
-	base  *slog.Logger
-	ctx   context.Context
-	level Level
+	base              *slog.Logger
+	ctx               context.Context
+	level             Level
+	contextFieldsFunc ContextFieldsFunc // Optional function to extract context fields
 }
 
 // NewRotateWriter creates a writer that rotates logs based on the specified schedule.
@@ -144,12 +149,41 @@ func (rw *RotateWriter) Close() error {
 
 // With returns a child logger with preset fields.
 func (l *SlogLogger) With(args ...any) Logger {
-	return &SlogLogger{base: l.base.With(args...), ctx: l.ctx, level: l.level}
+	return &SlogLogger{
+		base:              l.base.With(args...),
+		ctx:               l.ctx,
+		level:             l.level,
+		contextFieldsFunc: l.contextFieldsFunc,
+	}
 }
 
 // WithContext binds a default context to the logger.
 func (l *SlogLogger) WithContext(ctx context.Context) Logger {
-	return &SlogLogger{base: l.base, ctx: ctx, level: l.level}
+	return &SlogLogger{
+		base:              l.base,
+		ctx:               ctx,
+		level:             l.level,
+		contextFieldsFunc: l.contextFieldsFunc,
+	}
+}
+
+// WithContextFields configures a function to extract fields from context.
+// This function will be called for every log entry to automatically add context fields.
+// Example:
+//
+//	logger.WithContextFields(func(ctx context.Context) []any {
+//	    if traceID := trace.GetTraceID(ctx); traceID != "" {
+//	        return []any{"trace_id", traceID}
+//	    }
+//	    return nil
+//	})
+func (l *SlogLogger) WithContextFields(fn ContextFieldsFunc) *SlogLogger {
+	return &SlogLogger{
+		base:              l.base,
+		ctx:               l.ctx,
+		level:             l.level,
+		contextFieldsFunc: fn,
+	}
 }
 
 // Enabled reports whether the specified level is enabled.
@@ -160,35 +194,58 @@ func (l *SlogLogger) Enabled(ctx context.Context, level Level) bool {
 	return l.base.Enabled(ctx, level.toSlog())
 }
 
-// Debug logs a debug message.
+// withContextFields extracts fields from context using the configured function.
+func (l *SlogLogger) withContextFields(ctx context.Context, args []any) []any {
+	if ctx == nil || l.contextFieldsFunc == nil {
+		return args
+	}
+
+	// Call the configured function to extract context fields
+	contextFields := l.contextFieldsFunc(ctx)
+	if len(contextFields) == 0 {
+		return args
+	}
+
+	// Merge context fields with provided args
+	newArgs := make([]any, 0, len(contextFields)+len(args))
+	newArgs = append(newArgs, contextFields...)
+	newArgs = append(newArgs, args...)
+	return newArgs
+}
+
+// Debug logs a debug message with automatic context field extraction.
 func (l *SlogLogger) Debug(ctx context.Context, msg string, args ...any) {
 	if ctx == nil {
 		ctx = l.ctx
 	}
+	args = l.withContextFields(ctx, args)
 	l.base.DebugContext(ctx, msg, args...)
 }
 
-// Info logs an info message.
+// Info logs an info message with automatic context field extraction.
 func (l *SlogLogger) Info(ctx context.Context, msg string, args ...any) {
 	if ctx == nil {
 		ctx = l.ctx
 	}
+	args = l.withContextFields(ctx, args)
 	l.base.InfoContext(ctx, msg, args...)
 }
 
-// Warn logs a warning message.
+// Warn logs a warning message with automatic context field extraction.
 func (l *SlogLogger) Warn(ctx context.Context, msg string, args ...any) {
 	if ctx == nil {
 		ctx = l.ctx
 	}
+	args = l.withContextFields(ctx, args)
 	l.base.WarnContext(ctx, msg, args...)
 }
 
-// Error logs an error message.
+// Error logs an error message with automatic context field extraction.
 func (l *SlogLogger) Error(ctx context.Context, msg string, args ...any) {
 	if ctx == nil {
 		ctx = l.ctx
 	}
+	args = l.withContextFields(ctx, args)
 	l.base.ErrorContext(ctx, msg, args...)
 }
 
