@@ -145,6 +145,11 @@ func TestSuccess(t *testing.T) {
 			if resp.Message != "success" {
 				t.Errorf("Message = %s, want success", resp.Message)
 			}
+
+			// 验证 TraceID 从 context 中正确获取
+			if resp.TraceID != "test-trace" {
+				t.Errorf("TraceID = %s, want test-trace", resp.TraceID)
+			}
 		})
 	}
 }
@@ -218,6 +223,16 @@ func TestFail(t *testing.T) {
 
 			if resp.Message != tt.expectedMessage {
 				t.Errorf("Message = %s, want %s", resp.Message, tt.expectedMessage)
+			}
+
+			// Fail 函数总是返回 nil data
+			if resp.Data != nil {
+				t.Errorf("Data = %v, want nil", resp.Data)
+			}
+
+			// 验证 TraceID 从 context 中正确获取
+			if resp.TraceID != "test-trace" {
+				t.Errorf("TraceID = %s, want test-trace", resp.TraceID)
 			}
 		})
 	}

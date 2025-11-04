@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/lyuangg/yuango/internal/errors"
+	apierrors "github.com/lyuangg/yuango/internal/errors"
 	"github.com/lyuangg/yuango/internal/trace"
 )
 
@@ -42,9 +42,9 @@ func Success(ctx context.Context, w http.ResponseWriter, data interface{}) error
 // Fail returns a failure response (accepts error parameter).
 func Fail(ctx context.Context, w http.ResponseWriter, err error) error {
 	// Check if it's an APIError
-	apiErr, ok := errors.AsAPIError(err)
+	apiErr, ok := apierrors.AsAPIError(err)
 	if !ok {
-		apiErr = errors.ErrInternalServer.Wrap(err)
+		apiErr = apierrors.ErrInternalServer.Wrap(err)
 	}
 
 	// Create response using APIError information
