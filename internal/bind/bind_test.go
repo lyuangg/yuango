@@ -592,6 +592,36 @@ func TestBindAll(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:        "JSON Content-Type with invalid JSON should return error immediately",
+			method:      http.MethodPost,
+			url:         "/test?name=John&email=john@example.com",
+			body:        `{"name":"John"`, // 无效的 JSON（缺少闭合括号）
+			contentType: "application/json",
+			wantError:   true,
+			checkFunc: func(t *testing.T, req *Request) {
+				// 即使 query 参数中有 name=John，由于 Content-Type 是 JSON 且 JSON 无效，
+				// 应该立即返回错误，而不应该继续尝试绑定 query 参数
+				if req.Name != "" {
+					t.Errorf("expected Name to be empty (JSON binding should fail immediately), got %s", req.Name)
+				}
+			},
+		},
+		{
+			name:        "Form Content-Type with invalid form should return error immediately",
+			method:      http.MethodPost,
+			url:         "/test?name=John&email=john@example.com",
+			body:        "invalid form data", // 无效的表单数据
+			contentType: "application/x-www-form-urlencoded",
+			wantError:   true,
+			checkFunc: func(t *testing.T, req *Request) {
+				// 即使 query 参数中有 name=John，由于 Content-Type 是 Form 且 Form 绑定失败，
+				// 应该立即返回错误，而不应该继续尝试绑定 query 参数
+				if req.Name != "" {
+					t.Errorf("expected Name to be empty (Form binding should fail immediately), got %s", req.Name)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

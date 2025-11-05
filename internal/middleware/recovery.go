@@ -38,7 +38,9 @@ func Recovery(appCtx *app.AppContext) Middleware {
 					}
 
 					if writeErr := response.Fail(r.Context(), w, panicErr); writeErr != nil {
-						appCtx.Logger.Error(r.Context(), "failed to write error response", "error", writeErr)
+						if appCtx != nil && appCtx.Logger != nil {
+							appCtx.Logger.Error(r.Context(), "failed to write error response", "error", writeErr)
+						}
 					}
 				}
 			}()

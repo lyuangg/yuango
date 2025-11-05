@@ -67,22 +67,27 @@ func BindPath(r *http.Request, dst interface{}) error {
 
 // BindAll 尝试绑定所有可能的来源（JSON body、Query、Form、Path）
 // 优先级：JSON > Form > Query > Path
+// 如果 Content-Type 明确指示 JSON/Form，绑定失败时应该立即返回错误
 func BindAll(r *http.Request, dst interface{}) error {
 	contentType := r.Header.Get("Content-Type")
 
 	// 1. 尝试绑定 JSON（如果 Content-Type 是 application/json）
 	if strings.HasPrefix(contentType, "application/json") {
-		if err := BindJSON(r, dst); err == nil {
-			return nil
+		if err := BindJSON(r, dst); err != nil {
+			// Content-Type 明确指示 JSON，如果绑定失败应该立即返回错误
+			return err
 		}
+		return nil
 	}
 
 	// 2. 尝试绑定 Form（如果 Content-Type 是 application/x-www-form-urlencoded 或 multipart/form-data）
 	if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") ||
 		strings.HasPrefix(contentType, "multipart/form-data") {
-		if err := BindForm(r, dst); err == nil {
-			return nil
+		if err := BindForm(r, dst); err != nil {
+			// Content-Type 明确指示 Form，如果绑定失败应该立即返回错误
+			return err
 		}
+		return nil
 	}
 
 	// 3. 尝试绑定 Query
