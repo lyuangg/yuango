@@ -100,6 +100,38 @@ func TestGormRepository_Update(t *testing.T) {
 		assert.Equal(t, "Jane", updated.Name)
 		assert.True(t, updated.UpdatedAt.After(originalUpdatedAt))
 	})
+
+	t.Run("update_with_duplicate_email", func(t *testing.T) {
+		// Create another user with different email
+		user2 := &model.User{
+			Name:  "Bob",
+			Email: stringPtr("bob@example.com"),
+			Phone: stringPtr("13800138004_2"),
+		}
+		err := repo.Create(ctx, user2)
+		require.NoError(t, err)
+
+		// Try to update user2 with duplicate email
+		user2.Email = user.Email // Set to existing email
+		err = repo.Update(ctx, user2)
+		assert.Error(t, err) // Should fail due to unique constraint
+	})
+
+	t.Run("update_with_duplicate_phone", func(t *testing.T) {
+		// Create another user with different phone
+		user3 := &model.User{
+			Name:  "Alice",
+			Email: stringPtr("alice@example.com"),
+			Phone: stringPtr("13800138004_3"),
+		}
+		err := repo.Create(ctx, user3)
+		require.NoError(t, err)
+
+		// Try to update user3 with duplicate phone
+		user3.Phone = user.Phone // Set to existing phone
+		err = repo.Update(ctx, user3)
+		assert.Error(t, err) // Should fail due to unique constraint
+	})
 }
 
 // TestGormRepository_Delete tests the Delete method.
@@ -131,6 +163,34 @@ func TestGormRepository_Delete(t *testing.T) {
 
 	t.Run("delete_not_found", func(t *testing.T) {
 		err := repo.Delete(ctx, 99999)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNotFound, err)
+	})
+
+	t.Run("delete_with_invalid_id", func(t *testing.T) {
+		// Test with ID 0 (invalid)
+		err := repo.Delete(ctx, 0)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNotFound, err)
+	})
+
+	t.Run("delete_multiple_times", func(t *testing.T) {
+		// Create a user
+		user := &model.User{
+			Name:  "TestDelete",
+			Email: stringPtr("testdelete@example.com"),
+			Phone: stringPtr("13800138006"),
+		}
+		err := repo.Create(ctx, user)
+		require.NoError(t, err)
+		id := user.ID
+
+		// Delete the user first time
+		err = repo.Delete(ctx, id)
+		assert.NoError(t, err)
+
+		// Try to delete again (should fail with ErrNotFound)
+		err = repo.Delete(ctx, id)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNotFound, err)
 	})
@@ -240,6 +300,25 @@ func TestGormRepository_CreateBatch(t *testing.T) {
 		err := repo.CreateBatch(ctx, []*model.User{})
 		assert.NoError(t, err)
 	})
+
+	t.Run("create_batch_with_duplicate_email", func(t *testing.T) {
+		// Create a user first
+		existingUser := &model.User{
+			Name:  "Existing",
+			Email: stringPtr("duplicate@example.com"),
+			Phone: stringPtr("13800138013"),
+		}
+		err := repo.Create(ctx, existingUser)
+		require.NoError(t, err)
+
+		// Try to create batch with duplicate email
+		users := []*model.User{
+			{Name: "User1", Email: stringPtr("duplicate@example.com"), Phone: stringPtr("13800138014")},
+		}
+
+		err = repo.CreateBatch(ctx, users)
+		assert.Error(t, err) // Should fail due to unique constraint
+	})
 }
 
 // TestGormRepository_UpdateByID tests the UpdateByID method.
@@ -275,6 +354,25 @@ func TestGormRepository_UpdateByID(t *testing.T) {
 	t.Run("update_by_id_empty_updates", func(t *testing.T) {
 		err := repo.UpdateByID(ctx, user.ID, map[string]interface{}{})
 		assert.NoError(t, err) // Should return nil without error
+	})
+
+	t.Run("update_by_id_with_duplicate_email", func(t *testing.T) {
+		// Create another user
+		user2 := &model.User{
+			Name:  "Bob",
+			Email: stringPtr("bob@example.com"),
+			Phone: stringPtr("13800138014"),
+		}
+		err := repo.Create(ctx, user2)
+		require.NoError(t, err)
+
+		// Try to update user2 with duplicate email
+		updates := map[string]interface{}{
+			"email": user.Email,
+		}
+
+		err = repo.UpdateByID(ctx, user2.ID, updates)
+		assert.Error(t, err) // Should fail due to unique constraint
 	})
 }
 
@@ -334,6 +432,28 @@ func TestGormRepository_UpdateWhere(t *testing.T) {
 
 		err := repo.UpdateWhere(ctx, conditions, map[string]interface{}{})
 		assert.NoError(t, err) // Should return nil without error
+	})
+
+	t.Run("update_where_with_duplicate_email", func(t *testing.T) {
+		// Create another user
+		user4 := &model.User{
+			Name:  "Charlie",
+			Email: stringPtr("charlie@example.com"),
+			Phone: stringPtr("13800138020"),
+		}
+		err := repo.Create(ctx, user4)
+		require.NoError(t, err)
+
+		// Try to update user4 with duplicate email
+		conditions := map[string]interface{}{
+			"name": "Charlie",
+		}
+		updates := map[string]interface{}{
+			"email": user1.Email, // Use existing user's email
+		}
+
+		err = repo.UpdateWhere(ctx, conditions, updates)
+		assert.Error(t, err) // Should fail due to unique constraint
 	})
 }
 
