@@ -629,3 +629,277 @@ func TestConfigureConnectionPool_ConcurrentAccess(t *testing.T) {
 	// Verify final configuration
 	assert.Equal(t, 50, sqlDB.Stats().MaxOpenConnections)
 }
+
+// TestNewDatabases tests the NewDatabases function.
+func TestNewDatabases(t *testing.T) {
+	mockLog := newMockLogger()
+
+	t.Run("only_default_database", func(t *testing.T) {
+		cfg := config.Config{
+			Database: config.DatabaseConfig{
+				Driver:   "sqlite",
+				DSN:      ":memory:",
+				LogLevel: "silent",
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Default)
+		require.Len(t, result.Databases, 1)
+		assert.Contains(t, result.Databases, "default")
+		assert.Equal(t, result.Databases["default"], result.Default)
+
+		// Verify database is usable
+		var count int
+		err = result.Default.Raw("SELECT 1").Scan(&count).Error
+		assert.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Cleanup
+		sqlDB, _ := result.Default.DB()
+		if sqlDB != nil {
+			sqlDB.Close()
+		}
+	})
+
+	t.Run("only_named_databases", func(t *testing.T) {
+		cfg := config.Config{
+			Databases: map[string]config.DatabaseConfig{
+				"db1": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+				"db2": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Default)
+		require.Len(t, result.Databases, 2)
+		assert.Contains(t, result.Databases, "db1")
+		assert.Contains(t, result.Databases, "db2")
+		// Default should be one of the databases (first one)
+		assert.NotNil(t, result.Default)
+
+		// Cleanup
+		for _, db := range result.Databases {
+			sqlDB, _ := db.DB()
+			if sqlDB != nil {
+				sqlDB.Close()
+			}
+		}
+	})
+
+	t.Run("default_and_named_databases", func(t *testing.T) {
+		cfg := config.Config{
+			Database: config.DatabaseConfig{
+				Driver:   "sqlite",
+				DSN:      ":memory:",
+				LogLevel: "silent",
+			},
+			Databases: map[string]config.DatabaseConfig{
+				"db1": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+				"db2": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Default)
+		require.Len(t, result.Databases, 3)
+		assert.Contains(t, result.Databases, "default")
+		assert.Contains(t, result.Databases, "db1")
+		assert.Contains(t, result.Databases, "db2")
+		// Default should be the explicitly configured default
+		assert.Equal(t, result.Databases["default"], result.Default)
+
+		// Cleanup
+		for _, db := range result.Databases {
+			sqlDB, _ := db.DB()
+			if sqlDB != nil {
+				sqlDB.Close()
+			}
+		}
+	})
+
+	t.Run("named_database_with_default_name_skipped", func(t *testing.T) {
+		cfg := config.Config{
+			Database: config.DatabaseConfig{
+				Driver:   "sqlite",
+				DSN:      ":memory:",
+				LogLevel: "silent",
+			},
+			Databases: map[string]config.DatabaseConfig{
+				"default": { // This should be skipped
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+				"db1": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Databases, 2) // default + db1, not 3
+		assert.Contains(t, result.Databases, "default")
+		assert.Contains(t, result.Databases, "db1")
+		// The "default" in Databases map should be the one from cfg.Database, not cfg.Databases["default"]
+		assert.Equal(t, result.Databases["default"], result.Default)
+
+		// Cleanup
+		for _, db := range result.Databases {
+			sqlDB, _ := db.DB()
+			if sqlDB != nil {
+				sqlDB.Close()
+			}
+		}
+	})
+
+	t.Run("no_databases_configured", func(t *testing.T) {
+		cfg := config.Config{
+			Database: config.DatabaseConfig{}, // Empty
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "no database configured")
+	})
+
+	t.Run("default_database_init_failure", func(t *testing.T) {
+		cfg := config.Config{
+			Database: config.DatabaseConfig{
+				Driver:   "sqlite",
+				DSN:      "invalid://dsn",
+				LogLevel: "silent",
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "init default database failed")
+	})
+
+	t.Run("named_database_init_failure", func(t *testing.T) {
+		cfg := config.Config{
+			Databases: map[string]config.DatabaseConfig{
+				"db1": {
+					Driver:   "sqlite",
+					DSN:      ":memory:",
+					LogLevel: "silent",
+				},
+				"db2": {
+					Driver:   "sqlite",
+					DSN:      "invalid://dsn",
+					LogLevel: "silent",
+				},
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "init database 'db2' failed")
+	})
+
+	t.Run("default_database_with_host", func(t *testing.T) {
+		// Test that Host field is also checked (not just DSN)
+		cfg := config.Config{
+			Database: config.DatabaseConfig{
+				Driver:   "sqlite",
+				Host:     "localhost", // Host is set but DSN is empty
+				DSN:      ":memory:",  // But we'll use DSN for SQLite
+				LogLevel: "silent",
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Default)
+
+		// Cleanup
+		sqlDB, _ := result.Default.DB()
+		if sqlDB != nil {
+			sqlDB.Close()
+		}
+	})
+
+	t.Run("multiple_databases_are_independent", func(t *testing.T) {
+		// Use file-based SQLite databases to ensure they are truly independent
+		// Note: SQLite :memory: databases might share connections in some cases
+		tempDir := t.TempDir()
+		cfg := config.Config{
+			Databases: map[string]config.DatabaseConfig{
+				"db1": {
+					Driver:   "sqlite",
+					DSN:      "file:" + tempDir + "/db1.db",
+					LogLevel: "silent",
+				},
+				"db2": {
+					Driver:   "sqlite",
+					DSN:      "file:" + tempDir + "/db2.db",
+					LogLevel: "silent",
+				},
+			},
+		}
+
+		result, err := NewDatabases(cfg, mockLog)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Databases, 2)
+
+		// Verify databases are independent (different instances)
+		db1 := result.Databases["db1"]
+		db2 := result.Databases["db2"]
+		assert.NotSame(t, db1, db2)
+
+		// Create a table in db1 and verify it doesn't exist in db2
+		err = db1.Exec("CREATE TABLE test (id INTEGER)").Error
+		require.NoError(t, err)
+
+		// Verify table exists in db1
+		var count int
+		err = db1.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='test'").Scan(&count).Error
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Verify table doesn't exist in db2
+		err = db2.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='test'").Scan(&count).Error
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+
+		// Cleanup
+		for _, db := range result.Databases {
+			sqlDB, _ := db.DB()
+			if sqlDB != nil {
+				sqlDB.Close()
+			}
+		}
+	})
+}

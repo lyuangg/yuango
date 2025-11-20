@@ -110,6 +110,66 @@ func configureReplicas(db *gorm.DB, masterDialector gorm.Dialector, cfg config.D
 	return nil
 }
 
+// DatabasesResult holds the result of initializing multiple databases.
+type DatabasesResult struct {
+	Databases map[string]*gorm.DB
+	Default   *gorm.DB
+}
+
+// NewDatabases initializes all databases (default and named) from config.
+// It handles:
+// - Initializing the default database (backward compatibility)
+// - Initializing named databases
+// - Selecting the default database if not explicitly configured
+// Returns an error if no databases are configured.
+func NewDatabases(cfg config.Config, appLogger logging.Logger) (*DatabasesResult, error) {
+	databases := make(map[string]*gorm.DB)
+	var defaultDB *gorm.DB
+
+	// Initialize default database (backward compatibility)
+	if cfg.Database.Host != "" || cfg.Database.DSN != "" {
+		db, err := NewGormDB(cfg.Database, appLogger)
+		if err != nil {
+			return nil, fmt.Errorf("init default database failed: %w", err)
+		}
+		defaultDB = db
+		databases["default"] = db
+	}
+
+	// Initialize named databases
+	if cfg.Databases != nil {
+		for name, dbCfg := range cfg.Databases {
+			// Skip if already initialized as default
+			if name == "default" && defaultDB != nil {
+				continue
+			}
+			db, err := NewGormDB(dbCfg, appLogger)
+			if err != nil {
+				return nil, fmt.Errorf("init database '%s' failed: %w", name, err)
+			}
+			databases[name] = db
+		}
+	}
+
+	// Validate at least one database is configured
+	if len(databases) == 0 {
+		return nil, fmt.Errorf("no database configured")
+	}
+
+	// Set default DB if not set (use first database)
+	if defaultDB == nil {
+		for _, db := range databases {
+			defaultDB = db
+			break
+		}
+	}
+
+	return &DatabasesResult{
+		Databases: databases,
+		Default:   defaultDB,
+	}, nil
+}
+
 // buildDSN builds a DSN string from database configuration.
 // If dsn is provided, it's used directly. Otherwise, builds DSN from components.
 // Default values (defaultUser, defaultPassword, defaultName) are used for empty fields (useful for replicas).
