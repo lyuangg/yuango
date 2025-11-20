@@ -42,6 +42,9 @@ type Client interface {
 	// Sorted set operations
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
 	ZRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd
+	ZRangeByScore(ctx context.Context, key string, opt *redis.ZRangeBy) *redis.StringSliceCmd
+	ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
+	ZCard(ctx context.Context, key string) *redis.IntCmd
 	ZScore(ctx context.Context, key, member string) *redis.FloatCmd
 
 	// General operations

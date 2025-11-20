@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -176,6 +177,148 @@ func TestMockClient(t *testing.T) {
 		card, err := client.SCard(ctx, key).Result()
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), card)
+	})
+
+	t.Run("sorted_set_operations", func(t *testing.T) {
+		key := "test:sorted"
+
+		// ZAdd - add members with scores
+		count, err := client.ZAdd(ctx, key,
+			redis.Z{Score: 1.0, Member: "member1"},
+			redis.Z{Score: 2.0, Member: "member2"},
+			redis.Z{Score: 3.0, Member: "member3"},
+			redis.Z{Score: 1.5, Member: "member4"},
+		).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(4), count)
+
+		// ZCard - get cardinality
+		card, err := client.ZCard(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(4), card)
+
+		// ZRange - get members by rank
+		members, err := client.ZRange(ctx, key, 0, -1).Result()
+		require.NoError(t, err)
+		assert.Len(t, members, 4)
+		// Should be sorted by score
+		assert.Contains(t, members, "member1")
+		assert.Contains(t, members, "member2")
+		assert.Contains(t, members, "member3")
+		assert.Contains(t, members, "member4")
+
+		// ZRange with range
+		members, err = client.ZRange(ctx, key, 0, 1).Result()
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(members), 2)
+
+		// ZScore - get score of a member
+		score, err := client.ZScore(ctx, key, "member1").Result()
+		require.NoError(t, err)
+		assert.Equal(t, 1.0, score)
+
+		score, err = client.ZScore(ctx, key, "member2").Result()
+		require.NoError(t, err)
+		assert.Equal(t, 2.0, score)
+
+		// ZScore for nonexistent member
+		_, err = client.ZScore(ctx, key, "nonexistent").Result()
+		assert.Error(t, err)
+
+		// ZRangeByScore - get members by score range
+		members, err = client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
+			Min: "1.0",
+			Max: "2.0",
+		}).Result()
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(members), 0) // Should return members with scores between 1.0 and 2.0
+
+		// ZRem - remove members
+		removed, err := client.ZRem(ctx, key, "member1", "member2").Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), removed)
+
+		// Verify removal
+		card, err = client.ZCard(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), card) // Should have 2 members left
+
+		// ZRem with nonexistent member
+		removed, err = client.ZRem(ctx, key, "nonexistent").Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), removed) // Should return 0 for nonexistent member
+
+		// ZRem with multiple members (some exist, some don't)
+		removed, err = client.ZRem(ctx, key, "member3", "nonexistent", "member4").Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), removed) // Should remove member3 and member4
+
+		// Verify all removed
+		card, err = client.ZCard(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), card)
+	})
+
+	t.Run("zcard_empty_set", func(t *testing.T) {
+		key := "test:zcard:empty"
+		card, err := client.ZCard(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), card)
+	})
+
+	t.Run("zrangebyscore_empty_set", func(t *testing.T) {
+		key := "test:zrangebyscore:empty"
+		members, err := client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
+			Min: "0",
+			Max: "10",
+		}).Result()
+		require.NoError(t, err)
+		assert.Empty(t, members)
+	})
+
+	t.Run("zrem_empty_set", func(t *testing.T) {
+		key := "test:zrem:empty"
+		removed, err := client.ZRem(ctx, key, "member1").Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), removed)
+	})
+
+	t.Run("zadd_update_existing", func(t *testing.T) {
+		key := "test:zadd:update"
+		// Add member with initial score
+		count, err := client.ZAdd(ctx, key, redis.Z{Score: 1.0, Member: "member1"}).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), count)
+
+		// Update score
+		count, err = client.ZAdd(ctx, key, redis.Z{Score: 2.0, Member: "member1"}).Result()
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count) // Should return 0 for update
+
+		// Verify updated score
+		score, err := client.ZScore(ctx, key, "member1").Result()
+		require.NoError(t, err)
+		assert.Equal(t, 2.0, score)
+	})
+
+	t.Run("zrangebyscore_with_scores", func(t *testing.T) {
+		key := "test:zrangebyscore:scores"
+		// Add members with different scores
+		_, err := client.ZAdd(ctx, key,
+			redis.Z{Score: 1.0, Member: "low"},
+			redis.Z{Score: 5.0, Member: "mid"},
+			redis.Z{Score: 10.0, Member: "high"},
+		).Result()
+		require.NoError(t, err)
+
+		// Get members with scores between 2 and 8
+		members, err := client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
+			Min: "2",
+			Max: "8",
+		}).Result()
+		require.NoError(t, err)
+		// Should include "mid" (score 5.0)
+		assert.Contains(t, members, "mid")
 	})
 
 	t.Run("close", func(t *testing.T) {

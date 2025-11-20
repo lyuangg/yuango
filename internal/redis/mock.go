@@ -3,6 +3,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ type MockClient struct {
 	hashes map[string]map[string]string
 	lists  map[string][]string
 	sets   map[string]map[string]bool
+	sorted map[string]map[string]float64 // sorted sets: key -> member -> score
 	expiry map[string]time.Time
 	closed bool
 }
@@ -27,6 +29,7 @@ func NewMockClient() *MockClient {
 		hashes: make(map[string]map[string]string),
 		lists:  make(map[string][]string),
 		sets:   make(map[string]map[string]bool),
+		sorted: make(map[string]map[string]float64),
 		expiry: make(map[string]time.Time),
 	}
 }
@@ -255,7 +258,16 @@ func (m *MockClient) LPush(ctx context.Context, key string, values ...interface{
 	}
 
 	for i := len(values) - 1; i >= 0; i-- {
-		m.lists[key] = append([]string{values[i].(string)}, m.lists[key]...)
+		var strVal string
+		switch v := values[i].(type) {
+		case string:
+			strVal = v
+		case []byte:
+			strVal = string(v)
+		default:
+			strVal = fmt.Sprintf("%v", v)
+		}
+		m.lists[key] = append([]string{strVal}, m.lists[key]...)
 	}
 
 	cmd.SetVal(int64(len(m.lists[key])))
@@ -274,7 +286,16 @@ func (m *MockClient) RPush(ctx context.Context, key string, values ...interface{
 	}
 
 	for _, val := range values {
-		m.lists[key] = append(m.lists[key], val.(string))
+		var strVal string
+		switch v := val.(type) {
+		case string:
+			strVal = v
+		case []byte:
+			strVal = string(v)
+		default:
+			strVal = fmt.Sprintf("%v", v)
+		}
+		m.lists[key] = append(m.lists[key], strVal)
 	}
 
 	cmd.SetVal(int64(len(m.lists[key])))
@@ -444,23 +465,174 @@ func (m *MockClient) SCard(ctx context.Context, key string) *redis.IntCmd {
 
 // ZAdd implements Client.ZAdd
 func (m *MockClient) ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd {
-	// Simplified implementation - just count members
-	cmd := redis.NewIntCmd(ctx, "zadd", key)
-	cmd.SetVal(int64(len(members)))
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	cmd := redis.NewIntCmd(ctx, "zadd", key, members)
+	count := int64(0)
+
+	if m.sorted[key] == nil {
+		m.sorted[key] = make(map[string]float64)
+	}
+
+	for _, member := range members {
+		memberStr := ""
+		switch v := member.Member.(type) {
+		case string:
+			memberStr = v
+		case []byte:
+			memberStr = string(v)
+		default:
+			memberStr = fmt.Sprintf("%v", v)
+		}
+		if _, exists := m.sorted[key][memberStr]; !exists {
+			count++
+		}
+		m.sorted[key][memberStr] = member.Score
+	}
+
+	cmd.SetVal(count)
 	return cmd
 }
 
 // ZRange implements Client.ZRange
 func (m *MockClient) ZRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	cmd := redis.NewStringSliceCmd(ctx, "zrange", key, start, stop)
-	cmd.SetVal([]string{})
+
+	if sorted, ok := m.sorted[key]; ok {
+		// Convert map to sorted slice
+		type memberScore struct {
+			member string
+			score  float64
+		}
+		var items []memberScore
+		for member, score := range sorted {
+			items = append(items, memberScore{member: member, score: score})
+		}
+		// Sort by score (simple implementation)
+		for i := 0; i < len(items)-1; i++ {
+			for j := i + 1; j < len(items); j++ {
+				if items[i].score > items[j].score {
+					items[i], items[j] = items[j], items[i]
+				}
+			}
+		}
+		// Apply range
+		var results []string
+		length := int64(len(items))
+		if start < 0 {
+			start = length + start
+		}
+		if stop < 0 {
+			stop = length + stop
+		}
+		if start < 0 {
+			start = 0
+		}
+		if stop >= length {
+			stop = length - 1
+		}
+		for i := start; i <= stop && i < length; i++ {
+			results = append(results, items[i].member)
+		}
+		cmd.SetVal(results)
+	} else {
+		cmd.SetVal([]string{})
+	}
+
+	return cmd
+}
+
+// ZRangeByScore implements Client.ZRangeByScore
+func (m *MockClient) ZRangeByScore(ctx context.Context, key string, opt *redis.ZRangeBy) *redis.StringSliceCmd {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	cmd := redis.NewStringSliceCmd(ctx, "zrangebyscore", key, opt)
+
+	if sorted, ok := m.sorted[key]; ok {
+		var results []string
+		// Simple implementation: return all members (real implementation would parse Min/Max)
+		for member := range sorted {
+			results = append(results, member)
+		}
+		cmd.SetVal(results)
+	} else {
+		cmd.SetVal([]string{})
+	}
+
+	return cmd
+}
+
+// ZRem implements Client.ZRem
+func (m *MockClient) ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	cmd := redis.NewIntCmd(ctx, "zrem", key, members)
+	count := int64(0)
+
+	if sorted, ok := m.sorted[key]; ok {
+		for _, member := range members {
+			memberStr := ""
+			switch v := member.(type) {
+			case string:
+				memberStr = v
+			case []byte:
+				memberStr = string(v)
+			default:
+				memberStr = fmt.Sprintf("%v", v)
+			}
+			if _, exists := sorted[memberStr]; exists {
+				delete(sorted, memberStr)
+				count++
+			}
+		}
+		if len(sorted) == 0 {
+			delete(m.sorted, key)
+		}
+	}
+
+	cmd.SetVal(count)
+	return cmd
+}
+
+// ZCard implements Client.ZCard
+func (m *MockClient) ZCard(ctx context.Context, key string) *redis.IntCmd {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	cmd := redis.NewIntCmd(ctx, "zcard", key)
+
+	if sorted, ok := m.sorted[key]; ok {
+		cmd.SetVal(int64(len(sorted)))
+	} else {
+		cmd.SetVal(0)
+	}
+
 	return cmd
 }
 
 // ZScore implements Client.ZScore
 func (m *MockClient) ZScore(ctx context.Context, key, member string) *redis.FloatCmd {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	cmd := redis.NewFloatCmd(ctx, "zscore", key, member)
-	cmd.SetErr(redis.Nil)
+
+	if sorted, ok := m.sorted[key]; ok {
+		if score, exists := sorted[member]; exists {
+			cmd.SetVal(score)
+		} else {
+			cmd.SetErr(redis.Nil)
+		}
+	} else {
+		cmd.SetErr(redis.Nil)
+	}
+
 	return cmd
 }
 
