@@ -278,6 +278,78 @@ func TestNamespaceCache(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
+
+	t.Run("delete_with_namespace", func(t *testing.T) {
+		key := "delete:key"
+		cache.Set(ctx, key, "value", 0)
+
+		err := cache.Delete(ctx, key)
+		require.NoError(t, err)
+
+		var result string
+		err = baseCache.Get(ctx, "app:"+key, &result)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNotFound, err)
+	})
+
+	t.Run("expire_and_ttl_with_namespace", func(t *testing.T) {
+		key := "expire:key"
+		cache.Set(ctx, key, "value", 0)
+
+		ok, err := cache.Expire(ctx, key, 50*time.Millisecond)
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		ttl, err := cache.TTL(ctx, key)
+		require.NoError(t, err)
+		assert.Greater(t, ttl, time.Duration(0))
+		assert.LessOrEqual(t, ttl, 50*time.Millisecond)
+
+		time.Sleep(60 * time.Millisecond)
+
+		var result string
+		err = cache.Get(ctx, key, &result)
+		assert.Error(t, err)
+		assert.Equal(t, ErrNotFound, err)
+	})
+
+	t.Run("get_or_set_with_namespace", func(t *testing.T) {
+		key := "lazy:key"
+		callCount := 0
+
+		setFunc := func() (interface{}, error) {
+			callCount++
+			return "computed", nil
+		}
+
+		var value string
+		err := cache.GetOrSet(ctx, key, &value, time.Minute, setFunc)
+		require.NoError(t, err)
+		assert.Equal(t, "computed", value)
+		assert.Equal(t, 1, callCount)
+
+		var stored string
+		err = baseCache.Get(ctx, "app:"+key, &stored)
+		require.NoError(t, err)
+		assert.Equal(t, "computed", stored)
+	})
+
+	t.Run("increment_and_decrement_namespace", func(t *testing.T) {
+		key := "counter"
+
+		val, err := cache.Increment(ctx, key, 5)
+		require.NoError(t, err)
+		assert.Equal(t, int64(5), val)
+
+		val, err = cache.Decrement(ctx, key, 2)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), val)
+
+		var stored int64
+		err = baseCache.Get(ctx, "app:"+key, &stored)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), stored)
+	})
 }
 
 // TestMemoryCache_Concurrent tests concurrent access to MemoryCache.
